@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SoundKit } from "../game/audio";
+
+const KEY = "nightowl.manifest.v1";
 
 interface Task {
   id: number;
@@ -7,169 +9,175 @@ interface Task {
   done: boolean;
 }
 
-const LS_KEY = "nightowl.todos.v1";
+const SEED: Task[] = [
+  { id: 1, text: "open the reading", done: true },
+  { id: 2, text: "one pomodoro, no phone", done: false },
+  { id: 3, text: "wave at a stranger (G)", done: false },
+];
 
 function load(): Task[] {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(KEY);
     if (raw) return JSON.parse(raw) as Task[];
   } catch {
-    /* storage unavailable */
+    /* ignore */
   }
-  return [
-    { id: 1, text: "Read 10 pages", done: false },
-    { id: 2, text: "Draft outline", done: true },
-    { id: 3, text: "Review flashcards", done: false },
-  ];
+  return SEED;
 }
 
-interface Props {
-  sound: SoundKit;
-  open: boolean;
-  onToggle: () => void;
-}
-
-export default function TodoPanel({ sound, open, onToggle }: Props) {
+export default function TodoPanel({ sound, open, onToggle }: { sound: SoundKit; open: boolean; onToggle: () => void }) {
   const [tasks, setTasks] = useState<Task[]>(load);
-  const [text, setText] = useState("");
-  const [justDone, setJustDone] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  const nextId = useMemo(() => Date.now(), []);
+  void nextId;
 
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(tasks));
+      localStorage.setItem(KEY, JSON.stringify(tasks));
     } catch {
-      /* storage unavailable */
+      /* ignore */
     }
   }, [tasks]);
 
-  const add = () => {
-    const t = text.trim();
-    if (!t) return;
-    setTasks((ts) => [...ts, { id: Date.now(), text: t, done: false }]);
-    setText("");
-    sound.blip(740);
-  };
+  const doneCount = tasks.filter((t) => t.done).length;
+  const stops = Math.max(tasks.length, 1);
 
+  const add = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setTasks((ts) => [...ts, { id: Date.now(), text, done: false }]);
+    setDraft("");
+    sound.blip(760);
+  };
   const toggle = (id: number) => {
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-    const task = tasks.find((t) => t.id === id);
-    if (task && !task.done) {
-      sound.blip(980);
-      setJustDone(id);
-      window.setTimeout(() => setJustDone(null), 700);
-    } else {
-      sound.blip(420);
-    }
+    const t = tasks.find((x) => x.id === id);
+    sound.blip(t && !t.done ? 980 : 420);
   };
-
   const remove = (id: number) => {
     setTasks((ts) => ts.filter((t) => t.id !== id));
-    sound.blip(320);
+    sound.blip(300);
   };
-
-  const done = tasks.filter((t) => t.done).length;
-  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+  const clearDone = () => {
+    setTasks((ts) => ts.filter((t) => !t.done));
+    sound.blip(360);
+  };
 
   return (
     <>
-      {/* tab handle */}
-      <button
-        onClick={onToggle}
-        className={`px-btn px-btn-ghost absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-1 px-1.5 py-3 text-lg transition-all duration-300 ${
-          open ? "right-[276px]" : "right-0"
-        }`}
-        title="To-do list"
-      >
-        <span className="font-display [writing-mode:vertical-rl]">TO-DO</span>
-        <span>{open ? "»" : "«"}</span>
-      </button>
-
+      {/* drawer */}
       <aside
-        className={`absolute top-0 bottom-0 right-0 z-20 w-[276px] transition-transform duration-300 ease-out ${
+        className={`px-panel absolute bottom-2 right-0 top-2 z-30 flex w-[276px] flex-col transition-transform duration-300 ease-out md:bottom-3 md:top-3 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="px-panel-dark flex h-full flex-col border-l-2">
-          <div className="border-b-2 border-[#0d0705] bg-[#2b1b14] px-4 py-2.5">
-            <p className="font-display text-xl leading-none text-[#f2a33c]">PASSENGER TO-DO</p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[#8a6a4a]">saved to this seat · {done}/{tasks.length} done</p>
+        <div className="flex items-center justify-between border-b-2 border-black px-3 py-2.5">
+          <div>
+            <p className="font-display text-[11px] font-bold tracking-widest text-amberglow">TRIP MANIFEST</p>
+            <p className="font-term text-base leading-none text-fadedink">tasks for this ride</p>
           </div>
+          <button onClick={onToggle} className="px-btn bg-[#3a241a] px-2 py-1 text-lg leading-none text-parchment" aria-label="Close manifest">
+            ▸
+          </button>
+        </div>
 
-          <div className="flex gap-1.5 border-b-2 border-[#0d0705] p-2.5">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && add()}
-              placeholder="Add a task…"
-              maxLength={60}
-              className="px-inset min-w-0 flex-1 px-2.5 py-1.5 font-display text-lg text-[#f4e7d3] outline-none placeholder:text-[#6d452c] focus:shadow-[inset_0_0_0_2px_#f2a33c]"
+        {/* route progress */}
+        <div className="px-3 pt-3">
+          <div className="relative flex items-center">
+            <div className="absolute left-0 right-0 top-1/2 h-[3px] -translate-y-1/2 bg-black" />
+            <div
+              className="absolute left-0 top-1/2 h-[3px] -translate-y-1/2 bg-amberglow transition-all duration-500"
+              style={{ width: `${(doneCount / stops) * 100}%` }}
             />
-            <button onClick={add} className="px-btn px-2.5 text-xl" aria-label="Add task">
-              +
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
-            {tasks.length === 0 && (
-              <p className="mt-6 text-center text-xs text-[#8a6a4a]">
-                Nothing here. Add one small task —
-                <br />
-                small tasks love train rides.
-              </p>
-            )}
-            <ul className="space-y-1.5">
-              {tasks.map((t) => (
-                <li
-                  key={t.id}
-                  className={`group flex items-center gap-2 border-2 border-[#0d0705] bg-[#241611] px-2 py-1.5 transition-all duration-200 ${
-                    justDone === t.id ? "-translate-y-0.5 bg-[#3a4a2c]" : ""
-                  } ${t.done ? "opacity-60" : ""}`}
-                >
-                  <button
-                    onClick={() => toggle(t.id)}
-                    aria-label={t.done ? "Mark as not done" : "Mark as done"}
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center border-2 border-[#0d0705] transition-colors ${
-                      t.done ? "bg-[#7fa07a]" : "bg-[#170d09] group-hover:bg-[#2b1b14]"
-                    }`}
-                  >
-                    {t.done && (
-                      <svg viewBox="0 0 10 10" className="h-3 w-3">
-                        <path d="M1.5 5.5 L4 8 L8.5 2" fill="none" stroke="#140d0a" strokeWidth="2" />
-                      </svg>
-                    )}
-                  </button>
-                  <span
-                    className={`min-w-0 flex-1 text-[13px] leading-snug ${
-                      t.done ? "text-[#8a6a4a] line-through" : "text-[#e8d5b5]"
-                    }`}
-                  >
-                    {t.text}
-                  </span>
-                  <button
-                    onClick={() => remove(t.id)}
-                    aria-label="Delete task"
-                    className="shrink-0 px-1 font-display text-lg leading-none text-[#6d452c] opacity-0 transition-opacity hover:text-[#e26d6d] group-hover:opacity-100"
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="border-t-2 border-[#0d0705] p-2.5">
-            <div className="px-inset h-4 overflow-hidden">
-              <div
-                className="h-full bg-[#7fa07a] transition-all duration-500"
-                style={{ width: `${pct}%`, boxShadow: "inset 0 -3px 0 rgba(0,0,0,0.25), inset 0 2px 0 rgba(255,255,255,0.2)" }}
+            {tasks.map((t) => (
+              <span
+                key={t.id}
+                className={`relative z-10 h-2.5 w-2.5 flex-1 border-2 border-black ${t.done ? "bg-amberglow" : "bg-[#241610]"}`}
+                style={{ marginLeft: "-1px" }}
               />
-            </div>
-            <p className="font-display mt-1 text-right text-base leading-none text-[#a8886a]">
-              {pct === 100 && tasks.length > 0 ? "All clear — window's all yours ✦" : `${pct}% of the way there`}
-            </p>
+            ))}
+            {tasks.length === 0 && <span className="relative z-10 h-2.5 w-2.5 border-2 border-black bg-[#241610]" />}
           </div>
+          <p className="mt-1.5 font-term text-base leading-none text-fadedink">
+            <span className="text-amberhi">{doneCount}</span> / {tasks.length} stops made
+          </p>
+        </div>
+
+        {/* input */}
+        <div className="flex gap-2 px-3 pt-2.5">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+            placeholder="next stop…"
+            maxLength={42}
+            className="px-inset min-w-0 flex-1 px-2 py-1.5 font-term text-lg leading-none text-creamsoda placeholder:text-[#6a523a]"
+          />
+          <button onClick={add} className="px-btn bg-[#e0763c] px-3 text-xl leading-none text-[#fff3e0]" aria-label="Add task">
+            +
+          </button>
+        </div>
+
+        {/* list */}
+        <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-2">
+          {tasks.map((t) => (
+            <li key={t.id} className="todo-row group flex items-center gap-2 border-2 border-transparent px-1 py-1">
+              <button
+                onClick={() => toggle(t.id)}
+                aria-label={t.done ? "Mark as not done" : "Mark as done"}
+                className={`swatch-btn h-5 w-5 shrink-0 ${t.done ? "bg-amberglow" : "bg-[#241610]"}`}
+              >
+                {t.done && (
+                  <svg viewBox="0 0 8 8" className="h-full w-full" shapeRendering="crispEdges">
+                    <rect x="1" y="4" width="2" height="2" fill="#120b08" />
+                    <rect x="3" y="5" width="2" height="2" fill="#120b08" />
+                    <rect x="5" y="2" width="2" height="2" fill="#120b08" />
+                  </svg>
+                )}
+              </button>
+              <span className={`done-toggle min-w-0 flex-1 font-body text-[13px] leading-snug ${t.done ? "done-label text-fadedink" : "text-creamsoda"}`}>
+                {t.text}
+              </span>
+              <button
+                onClick={() => remove(t.id)}
+                className="hidden shrink-0 font-term text-lg leading-none text-fadedink hover:text-signalred group-hover:block"
+                aria-label="Remove task"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+          {tasks.length === 0 && (
+            <li className="px-1 py-4 text-center font-term text-xl leading-tight text-fadedink">
+              a blank manifest.
+              <br />
+              the ride is the reward.
+            </li>
+          )}
+        </ul>
+
+        <div className="flex items-center justify-between border-t-2 border-black px-3 py-2">
+          <button onClick={clearDone} className="font-term text-base leading-none text-fadedink hover:text-amberglow">
+            drop done stops
+          </button>
+          <p className="font-term text-base leading-none text-[#6a523a]">saved in this seat</p>
         </div>
       </aside>
+
+      {/* tab handle */}
+      <button
+        onClick={onToggle}
+        className={`px-btn absolute left-2 top-2 z-30 flex items-center gap-2 bg-[#2c1b12] px-2.5 py-1.5 transition-all duration-300 md:left-3 md:top-3 ${
+          open ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+        aria-label="Open manifest"
+      >
+        <span className="led led-on-amber" />
+        <span className="font-display text-[10px] font-bold tracking-widest text-amberglow">MANIFEST</span>
+        <span className="px-chip bg-[#170d09] px-1.5 py-0.5 font-term text-sm leading-none text-amberhi">
+          {tasks.length - doneCount}
+        </span>
+      </button>
     </>
   );
 }

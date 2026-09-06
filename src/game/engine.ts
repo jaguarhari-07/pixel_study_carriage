@@ -8,7 +8,7 @@
    states into the same map. */
 
 import { buildSheet, EYE_SPOTS, getIcon, SKINS, SWATCHES } from "./sprites";
-import { buildWorld, COLS, isSolid, ROWS, TILE, WINDOW_BAND_H, WINDOW_BAND_Y, type World } from "./world";
+import { buildWorld, CLOCK, COLS, HANG_SIGN_X, isSolid, ROWS, TILE, WINDOW_BAND_H, WINDOW_BAND_Y, type World } from "./world";
 import type { BoothCycle, Dir, EmoteKind, HudSnapshot, Identity, PassengerHud, PlayerState, SeatDef } from "./types";
 
 export const PLAYER_ID = "you";
@@ -85,6 +85,8 @@ export class Engine {
   private hudAcc = 0;
   private blinkSeeds = new Map<string, { next: number; until: number }>();
   private animAcc = new Map<string, number>();
+  private shoot: { x: number; y: number; vx: number; vy: number; life: number } | null = null;
+  private shootNext = 6;
   private ro: ResizeObserver | null = null;
   private identity: Identity | null = null;
   onHud: ((s: HudSnapshot) => void) | null = null;
@@ -646,6 +648,25 @@ export class Engine {
     this.trainDist += TRAIN_SPEED * dt;
     this.sway = Math.sin(this.time * 2.2) * 1.15;
 
+    // occasional shooting star behind the windows
+    this.shootNext -= dt;
+    if (!this.shoot && this.shootNext <= 0) {
+      this.shoot = {
+        x: this.viewW * (0.2 + Math.random() * 0.6),
+        y: Math.random() * 0.35,
+        vx: -(90 + Math.random() * 70),
+        vy: 26 + Math.random() * 20,
+        life: 0.9,
+      };
+      this.shootNext = 7 + Math.random() * 10;
+    }
+    if (this.shoot) {
+      this.shoot.life -= dt;
+      this.shoot.x += this.shoot.vx * dt;
+      this.shoot.y += (this.shoot.vy * dt) / Math.max(1, this.viewH * 0.1);
+      if (this.shoot.life <= 0) this.shoot = null;
+    }
+
     this.updatePlayer(dt);
     this.updateBots(dt);
     this.detectNearSeat();
@@ -701,7 +722,9 @@ export class Engine {
     this.drawWindowLight(wx, wy);
     this.drawEntities(wx, wy);
     this.drawParticles(wx, wy);
+    this.drawLiving(wx, wy);
     this.drawLampLight(wx, wy);
+    this.drawGlassSheen(wx, wy);
     if (this.rainOn) this.drawRain(wx, wy);
     this.drawVignette();
   }
@@ -727,6 +750,24 @@ export class Engine {
       for (let x = wx(0) - off - lw; x < this.viewW; x += lw) {
         ctx.drawImage(layer.canvas, x, bandTop + (layer.factor >= 1 ? 0 : (1 - layer.factor) * 6 * S), lw, bandH);
       }
+    }
+    // shooting star
+    if (this.shoot) {
+      const f = Math.max(0, this.shoot.life / 0.9);
+      const sx = this.shoot.x;
+      const sy = bandTop + this.shoot.y * bandH;
+      const len = 26 * S * f;
+      const grad = ctx.createLinearGradient(sx, sy, sx + len, sy - len * 0.3);
+      grad.addColorStop(0, `rgba(255,240,200,${(0.9 * f).toFixed(3)})`);
+      grad.addColorStop(1, "rgba(255,240,200,0)");
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(1, S * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + len, sy - len * 0.3);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(255,250,230,${(0.95 * f).toFixed(3)})`;
+      ctx.fillRect(sx - S * 0.5, sy - S * 0.5, S, S);
     }
     ctx.restore();
   }
@@ -963,8 +1004,145 @@ export class Engine {
     ctx.restore();
   }
 
+  private plantTiles: Array<{ x: number; y: number }> | null = null;
+
+  /* hanging sign, wall clock hands, swaying plant fronds */
+  private drawLiving(wx: (n: number) => number, wy: (n: number) => number) {
+    const { ctx } = this;
+    const S = this.S;
+
+    // ---- wall clock (real time, smooth second hand) ----
+    {
+      const cx = wx(CLOCK.x);
+      const cy = wy(CLOCK.y);
+      if (cx > -40 && cx < this.viewW + 40) {
+        const d = new Date();
+        const sec = d.getSeconds() + d.getMilliseconds() / 1000;
+        const min = d.getMinutes() + sec / 60;
+        const hr = (d.getHours() % 12) + min / 60;
+        const hand = (ang: number, len: number, wdt: number, col: string) => {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = Math.max(1, wdt * S);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.sin(ang) * len * S, cy - Math.cos(ang) * len * S);
+          ctx.stroke();
+        };
+        hand((hr / 12) * Math.PI * 2, 4.5, 1.1, "#3a2418");
+        hand((min / 60) * Math.PI * 2, 6.2, 0.8, "#3a2418");
+        hand((sec / 60) * Math.PI * 2, 6.8, 0.35, "#c9564a");
+        ctx.fillStyle = "#c9564a";
+        ctx.fillRect(cx - S, cy - S, 2 * S, 2 * S);
+        // glass glint
+        ctx.fillStyle = "rgba(255,240,210,0.16)";
+        ctx.fillRect(cx - 5 * S, cy - 6 * S, 3 * S, 2 * S);
+      }
+    }
+
+    // ---- hanging "QUIET CAR" sign ----
+    {
+      const ax = wx(HANG_SIGN_X);
+      if (ax > -80 && ax < this.viewW + 80) {
+        const swing = Math.sin(this.time * 0.85) * 0.045 + Math.sin(this.time * 2.3) * 0.012;
+        const pivotY = wy(15);
+        ctx.save();
+        ctx.translate(ax, pivotY);
+        ctx.rotate(swing);
+        const glow = 0.5 + Math.sin(this.time * 3.1) * 0.12;
+        ctx.strokeStyle = "#17101a";
+        ctx.lineWidth = Math.max(1, 0.6 * S);
+        ctx.beginPath();
+        ctx.moveTo(-14 * S, 0);
+        ctx.lineTo(-14 * S, 10 * S);
+        ctx.moveTo(14 * S, 0);
+        ctx.lineTo(14 * S, 10 * S);
+        ctx.stroke();
+        // board
+        ctx.fillStyle = "#2c1a12";
+        ctx.fillRect(-24 * S, 9 * S, 48 * S, 14 * S);
+        ctx.fillStyle = "#3d2517";
+        ctx.fillRect(-23 * S, 10 * S, 46 * S, 12 * S);
+        ctx.fillStyle = `rgba(217,164,65,${(0.55 + glow * 0.3).toFixed(3)})`;
+        ctx.fillRect(-23 * S, 10 * S, 46 * S, 1 * S);
+        ctx.font = `${Math.max(7, 4.2 * S)}px VT323, monospace`;
+        ctx.textAlign = "center";
+        ctx.fillStyle = `rgba(255,214,138,${(0.72 + glow * 0.28).toFixed(3)})`;
+        ctx.fillText("Q U I E T  C A R", 0, 19.5 * S);
+        ctx.restore();
+      }
+    }
+
+    // ---- swaying plant fronds over static pots ----
+    {
+      if (!this.plantTiles) {
+        this.plantTiles = [];
+        for (let y = 0; y < ROWS; y++)
+          for (let x = 0; x < COLS; x++) if (this.world.grid[y][x] === "p") this.plantTiles.push({ x, y });
+      }
+      for (const t of this.plantTiles) {
+        const px = wx(t.x * TILE);
+        if (px < -20 || px > this.viewW + 20) continue;
+        const py = wy(t.y * TILE);
+        const s1 = Math.sin(this.time * 1.7 + t.x) * 1.4 * S;
+        const s2 = Math.sin(this.time * 2.3 + t.x * 2) * 1.1 * S;
+        ctx.fillStyle = "#8fae86";
+        ctx.fillRect(px + 6 * S + s1, py + 1 * S, S, 3 * S);
+        ctx.fillRect(px + 10 * S + s2, py + 2 * S, S, 2 * S);
+        ctx.fillStyle = "#6f8f6a";
+        ctx.fillRect(px + 3 * S - s1 * 0.6, py + 3 * S, S, 3 * S);
+        ctx.fillRect(px + 12 * S - s2 * 0.6, py + 3 * S, S, 2 * S);
+      }
+    }
+  }
+
+  /* drifting sheen across the window glass */
+  private drawGlassSheen(wx: (n: number) => number, wy: (n: number) => number) {
+    const { ctx } = this;
+    const S = this.S;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(wx(0), wy(WINDOW_BAND_Y), COLS * TILE * S, WINDOW_BAND_H * S);
+    ctx.clip();
+    // slow sweeping light band
+    const sweep = ((this.time * 26) % (this.viewW + 300)) - 150;
+    const grad = ctx.createLinearGradient(sweep, 0, sweep + 120 * S, 0);
+    grad.addColorStop(0, "rgba(255,235,200,0)");
+    grad.addColorStop(0.5, "rgba(255,235,200,0.09)");
+    grad.addColorStop(1, "rgba(255,235,200,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(sweep - 60 * S, wy(WINDOW_BAND_Y), 240 * S, WINDOW_BAND_H * S);
+    // static diagonal reflections per pane
+    ctx.strokeStyle = "rgba(244,231,211,0.08)";
+    ctx.lineWidth = Math.max(1, 1.2 * S);
+    for (const [x0, x1] of this.world.windowSpans) {
+      const X = wx(x0 * TILE);
+      const Y = wy(WINDOW_BAND_Y + 2);
+      const H2 = (WINDOW_BAND_H - 4) * S;
+      ctx.beginPath();
+      ctx.moveTo(X + 12 * S, Y);
+      ctx.lineTo(X + 4 * S, Y + H2);
+      ctx.moveTo(X + 20 * S, Y);
+      ctx.lineTo(X + 12 * S, Y + H2);
+      ctx.stroke();
+      void x1;
+    }
+    ctx.restore();
+  }
+
   private drawVignette() {
     const { ctx } = this;
+    // warm cinematic grade
+    const warm = ctx.createLinearGradient(0, 0, 0, this.viewH * 0.5);
+    warm.addColorStop(0, "rgba(255,170,90,0.05)");
+    warm.addColorStop(1, "rgba(255,170,90,0)");
+    ctx.fillStyle = warm;
+    ctx.fillRect(0, 0, this.viewW, this.viewH * 0.5);
+    const cool = ctx.createLinearGradient(0, this.viewH * 0.62, 0, this.viewH);
+    cool.addColorStop(0, "rgba(46,74,110,0)");
+    cool.addColorStop(1, "rgba(46,74,110,0.12)");
+    ctx.fillStyle = cool;
+    ctx.fillRect(0, this.viewH * 0.62, this.viewW, this.viewH * 0.38);
+
     const grad = ctx.createRadialGradient(
       this.viewW / 2,
       this.viewH / 2,

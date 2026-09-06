@@ -29,6 +29,15 @@ function loadIdentity(): Identity | null {
   return null;
 }
 
+const TICKER = [
+  "CAR 7 · QUIET STUDY COUPE",
+  "NEXT STOP — DEEP WORK",
+  "PLEASE KEEP POMODOROS TO A DULL ROAR",
+  "TEA & PASTRIES AT THE EAST CART",
+  "WAVE AT YOUR NEIGHBOUR · KEY G",
+  "ARRIVAL — WHENEVER YOU'RE DONE",
+];
+
 function TrainMark() {
   return (
     <svg viewBox="0 0 24 16" className="h-8 w-12" shapeRendering="crispEdges" aria-hidden>
@@ -44,8 +53,27 @@ function TrainMark() {
       <rect x="2" y="12" width="4" height="3" fill="#3a241a" />
       <rect x="16" y="12" width="4" height="3" fill="#3a241a" />
       <rect x="21" y="6" width="2" height="4" fill="#d9a441" />
-      <rect x="0" y="15" width="24" height="1" fill="#241a16" />
+      <rect x="0" y="15" width="24" height="1" fill="#0d0705" />
     </svg>
+  );
+}
+
+function FlapClock({ clock }: { clock: string }) {
+  const chars = clock.split("");
+  return (
+    <span className="flex items-center gap-[2px]">
+      {chars.map((ch, i) =>
+        ch === ":" ? (
+          <span key={i} className="pulse-dot font-display text-base leading-none text-amberglow">
+            :
+          </span>
+        ) : (
+          <span key={`${i}-${ch}`} className="flap flap-flip h-7 w-5 text-sm md:h-8 md:w-6 md:text-base">
+            {ch}
+          </span>
+        )
+      )}
+    </span>
   );
 }
 
@@ -75,10 +103,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const iv = window.setInterval(() => {
+    const tick = () => {
       const d = new Date();
       setClock(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
-    }, 1000);
+    };
+    tick();
+    const iv = window.setInterval(tick, 1000);
     return () => window.clearInterval(iv);
   }, []);
 
@@ -90,7 +120,7 @@ export default function App() {
       /* ignore */
     }
     sound.init();
-    sound.blip(880);
+    sound.chime("focus");
     engineRef.current?.board(id);
     setBoarded(true);
   };
@@ -100,40 +130,47 @@ export default function App() {
     engineRef.current?.emote(k);
   };
 
+  const tickerLine = TICKER.join("  ✦  ");
+
   return (
-    <div className="flex h-screen flex-col bg-coal text-creamsoda" style={{ fontFamily: "var(--font-body)" }}>
+    <div className="flex h-screen flex-col bg-coal text-creamsoda">
       {/* ---------- departure board header ---------- */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b-2 border-[#0d0705] bg-walnut px-3 md:px-5">
-        <div className="flex items-center gap-2.5">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b-[3px] border-black bg-walnut px-3 shadow-[0_4px_18px_rgba(0,0,0,0.5)] md:px-5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <TrainMark />
-          <div className="leading-none">
-            <h1 className="font-display text-2xl leading-none text-amberglow md:text-3xl">NIGHT OWL EXPRESS</h1>
-            <p className="mt-0.5 text-[9px] uppercase tracking-[0.28em] text-[#a8886a]">virtual study room · est. tonight</p>
+          <div className="min-w-0 leading-none">
+            <h1 className="truncate font-display text-base font-bold tracking-wide text-amberglow md:text-xl">
+              NIGHT OWL <span className="text-amberhi">EXPRESS</span>
+            </h1>
+            <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.28em] text-fadedink">virtual study room · car 7</p>
           </div>
         </div>
 
-        <div className="px-panel-dark hidden flex-1 items-center justify-center gap-3 px-4 py-1.5 lg:flex">
-          <span className="h-2 w-2 bg-moss pulse-dot" />
-          <p className="flicker marquee-glow font-display truncate text-2xl leading-none text-amberglow">
-            CAR 7 · QUIET STUDY · NEXT STOP — FOCUS
-          </p>
-          <span className="h-2 w-2 bg-moss pulse-dot" />
+        {/* ticker */}
+        <div className="relative hidden min-w-0 flex-1 overflow-hidden border-2 border-black bg-[#140b07] px-0 py-1.5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.8)] lg:block">
+          <span className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#140b07] to-transparent" />
+          <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#140b07] to-transparent" />
+          <div className="marquee-track">
+            <span className="flicker pr-8 font-term text-2xl leading-none tracking-wider text-amberhi">{tickerLine}  ✦  </span>
+            <span className="flicker pr-8 font-term text-2xl leading-none tracking-wider text-amberhi" aria-hidden>
+              {tickerLine}  ✦
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex shrink-0 items-center gap-2.5">
           {hud.seated && (
-            <span className="px-chip hidden items-center gap-1.5 bg-[#3a4a2c] px-2 py-1 font-display text-base leading-none text-moss sm:flex">
-              <svg viewBox="0 0 10 10" className="h-3 w-3" shapeRendering="crispEdges">
-                <rect x="1" y="2" width="8" height="6" fill="currentColor" />
-                <rect x="4" y="2" width="1" height="6" fill="#140d0a" />
-              </svg>
-              FOCUS MODE · {hud.seatLabel}
+            <span className="px-chip hidden items-center gap-1.5 bg-[#3a4a2c] px-2 py-1.5 sm:flex">
+              <span className="led led-on-amber led-blink" />
+              <span className="font-display text-[10px] font-bold tracking-wider text-moss">FOCUS · {hud.seatLabel}</span>
             </span>
           )}
-          <span className="px-chip bg-[#2b1b14] px-2 py-1 font-display text-lg leading-none text-parchment">
-            {hud.boarded ? `${hud.passengers.length} aboard` : "boarding…"}
+          <span className="px-chip hidden bg-[#2b1b14] px-2 py-1.5 sm:block">
+            <span className="font-display text-[10px] font-bold tracking-wider text-parchment">
+              {hud.boarded ? `${hud.passengers.length} ABOARD` : "BOARDING…"}
+            </span>
           </span>
-          <span className="px-chip bg-[#170d09] px-2 py-1 font-display text-2xl leading-none text-amberglow tabular-nums">{clock}</span>
+          <FlapClock clock={clock} />
         </div>
       </header>
 
@@ -170,13 +207,13 @@ export default function App() {
       </main>
 
       {/* ---------- platform strip ---------- */}
-      <footer className="flex h-11 shrink-0 items-center justify-between gap-4 border-t-2 border-[#0d0705] bg-walnut px-3 md:px-5">
+      <footer className="flex h-11 shrink-0 items-center justify-between gap-4 border-t-[3px] border-black bg-walnut px-3 md:px-5">
         <KeysLegend />
-        <p className="hidden text-[10px] uppercase tracking-[0.2em] text-[#8a6a4a] sm:block">
-          sprites &amp; sound synthesized in-browser · your to-dos never leave this seat
+        <p className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8a6a4a] sm:block">
+          sprites &amp; sound synthesized in-browser · your manifest never leaves this seat
         </p>
-        <p className="font-display text-base leading-none text-[#a8886a]">
-          signal: <span className="text-moss">cozy ●</span>
+        <p className="flex items-center gap-1.5 font-term text-base leading-none text-fadedink">
+          signal: <span className="led led-on-moss" /> <span className="text-moss">cozy</span>
         </p>
       </footer>
     </div>

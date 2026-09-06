@@ -1,201 +1,177 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SoundKit } from "../game/audio";
 import type { HudSnapshot } from "../game/types";
 
 const PRESETS = [
-  { label: "15/3", focus: 15 * 60, brk: 3 * 60 },
-  { label: "25/5", focus: 25 * 60, brk: 5 * 60 },
-  { label: "50/10", focus: 50 * 60, brk: 10 * 60 },
+  { id: "short", label: "15 / 3", f: 15, b: 3 },
+  { id: "classic", label: "25 / 5", f: 25, b: 5 },
+  { id: "deep", label: "50 / 10", f: 50, b: 10 },
 ];
 
-interface Props {
-  sound: SoundKit;
-  hud: HudSnapshot;
+function mmss(total: number) {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}${String(s).padStart(2, "0")}`;
 }
 
-function fmt(s: number) {
-  const m = Math.floor(s / 60);
-  const ss = s % 60;
-  return `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+/* one split-flap tile; remounts (and flips) only when its character changes */
+function Tile({ ch, w }: { ch: string; w?: string }) {
+  return (
+    <span key={ch} className={`flap flap-flip ${w ?? "h-9 w-7 text-xl md:h-10 md:w-8 md:text-2xl"}`}>
+      {ch}
+    </span>
+  );
 }
 
-export default function PomodoroCard({ sound, hud }: Props) {
-  const [presetIdx, setPresetIdx] = useState(1);
+export default function PomodoroCard({ sound, hud }: { sound: SoundKit; hud: HudSnapshot }) {
+  const [presetId, setPresetId] = useState("classic");
+  const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[1];
   const [phase, setPhase] = useState<"focus" | "break">("focus");
-  const [left, setLeft] = useState(PRESETS[1].focus);
+  const [left, setLeft] = useState(preset.f * 60);
   const [running, setRunning] = useState(false);
   const [sessions, setSessions] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef(0);
-
-  const total = phase === "focus" ? PRESETS[presetIdx].focus : PRESETS[presetIdx].brk;
+  const audioRef = useRef(sound);
+  audioRef.current = sound;
 
   useEffect(() => {
     if (!running) return;
     const iv = window.setInterval(() => {
-      setLeft((s) => {
-        if (s > 1) return s - 1;
-        // phase transition
-        setPhase((ph) => {
-          const next = ph === "focus" ? "break" : "focus";
-          if (next === "break") {
-            setSessions((n) => n + 1);
-            sound.chime("break");
-            setToast("Break time — stretch your legs");
-          } else {
-            sound.chime("focus");
-            setToast("Back to it. Deep focus!");
-          }
-          window.clearTimeout(toastTimer.current);
-          toastTimer.current = window.setTimeout(() => setToast(null), 2600);
-          setLeft(next === "focus" ? PRESETS[presetIdx].focus : PRESETS[presetIdx].brk);
-          return next;
-        });
-        return s;
+      setLeft((l) => {
+        if (l > 1) return l - 1;
+        return 0;
       });
     }, 1000);
     return () => window.clearInterval(iv);
-  }, [running, presetIdx, sound]);
+  }, [running]);
 
-  const switchPreset = (i: number) => {
-    setPresetIdx(i);
+  // phase transition
+  useEffect(() => {
+    if (left !== 0 || !running) return;
+    if (phase === "focus") {
+      setSessions((s) => s + 1);
+      setPhase("break");
+      setLeft(preset.b * 60);
+      audioRef.current.chime("break");
+    } else {
+      setPhase("focus");
+      setLeft(preset.f * 60);
+      audioRef.current.chime("focus");
+    }
+  }, [left, running, phase, preset]);
+
+  const pick = (id: string) => {
+    const p = PRESETS.find((x) => x.id === id)!;
+    setPresetId(id);
     setPhase("focus");
-    setLeft(PRESETS[i].focus);
+    setLeft(p.f * 60);
     setRunning(false);
-    sound.blip(660);
+    sound.blip(620);
   };
 
   const toggle = () => {
-    if (!running) sound.blip(880);
+    sound.blip(running ? 440 : 880);
     setRunning((r) => !r);
   };
-
-  const skip = () => {
-    const next = phase === "focus" ? "break" : "focus";
-    setPhase(next);
-    setLeft(next === "focus" ? PRESETS[presetIdx].focus : PRESETS[presetIdx].brk);
-    sound.blip(520);
-  };
-
   const reset = () => {
-    setPhase("focus");
-    setLeft(PRESETS[presetIdx].focus);
+    sound.blip(330);
     setRunning(false);
-    sound.blip(440);
+    setPhase("focus");
+    setLeft(preset.f * 60);
   };
 
-  const pct = 1 - left / total;
-  const ring = 2 * Math.PI * 26;
-  const isFocus = phase === "focus";
+  const total = (phase === "focus" ? preset.f : preset.b) * 60;
+  const pct = Math.round(((total - left) / total) * 100);
+  const digits = mmss(left);
+
+  const boothLine = useMemo(() => {
+    if (!hud.seated) return null;
+    if (hud.partnerName && hud.partnerFocusLeft != null) {
+      return `shared cycle w/ ${hud.partnerName} · ${mmss(Math.max(0, hud.partnerFocusLeft))}`;
+    }
+    return `booth ${hud.seatLabel ?? "—"} · ride solo, ring the bell`;
+  }, [hud]);
 
   return (
-    <div className="px-panel w-60 select-none p-3">
+    <div className="px-panel-dark w-[248px] p-3 md:w-[268px]">
+      {/* header */}
       <div className="flex items-center justify-between">
-        <span className="font-display text-lg leading-none text-[#d9a441]">POMODORO</span>
-        <div className="flex gap-1">
-          {PRESETS.map((p, i) => (
-            <button
-              key={p.label}
-              onClick={() => switchPreset(i)}
-              className={`px-chip px-1.5 py-0.5 text-sm leading-none transition-colors ${
-                i === presetIdx ? "bg-[#f2a33c] text-[#241305]" : "bg-[#2b1b14] text-[#a8886a] hover:text-[#e8d5b5]"
-              }`}
-            >
-              {p.label}
-            </button>
+        <p className="font-display text-[10px] font-bold tracking-widest text-fadedink">FOCUS LINE</p>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1">
+            <span className={`led ${phase === "focus" && running ? "led-on-signal led-blink" : ""}`} />
+            <span className="font-term text-sm leading-none text-[#a8886a]">FOC</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className={`led ${phase === "break" && running ? "led-on-moss led-blink" : ""}`} />
+            <span className="font-term text-sm leading-none text-[#a8886a]">BRK</span>
+          </span>
+        </div>
+      </div>
+
+      {/* split-flap time */}
+      <div className="mt-2.5 flex items-center justify-center gap-[3px]">
+        <Tile ch={digits[0]} />
+        <Tile ch={digits[1]} />
+        <span className={`font-display text-lg text-amberglow ${running ? "pulse-dot" : ""}`}>:</span>
+        <Tile ch={digits[2]} />
+        <Tile ch={digits[3]} />
+      </div>
+
+      {/* departure-board status line */}
+      <p className="mt-2 truncate border-2 border-black bg-coal px-2 py-1 text-center font-term text-lg leading-none tracking-wider">
+        <span className={phase === "focus" ? "text-signalred" : "text-moss"}>
+          {running ? (phase === "focus" ? "NOW DEPARTING · FOCUS" : "NOW DEPARTING · BREAK") : phase === "focus" ? "HELD AT PLATFORM · READY" : "HELD · BREAK READY"}
+        </span>
+        <span className="pulse-dot text-amberhi">▮</span>
+      </p>
+
+      {/* route progress */}
+      <div className="mt-2.5 px-0.5">
+        <div className="relative h-[10px] border-2 border-black bg-coal">
+          <div
+            className={`absolute inset-y-0 left-0 transition-all duration-500 ${phase === "focus" ? "bg-[#e0763c]" : "bg-[#5d8a5e]"}`}
+            style={{ width: `${pct}%` }}
+          />
+          {/* station ticks */}
+          {[25, 50, 75].map((t) => (
+            <span key={t} className="absolute top-0 h-full w-[2px] bg-black/60" style={{ left: `${t}%` }} />
           ))}
         </div>
-      </div>
-
-      <div className="mt-2 flex items-center gap-3">
-        {/* ring */}
-        <div className="relative h-16 w-16 shrink-0">
-          <svg viewBox="0 0 60 60" className="h-16 w-16 -rotate-90">
-            <circle cx="30" cy="30" r="26" fill="none" stroke="#170d09" strokeWidth="7" />
-            <circle
-              cx="30"
-              cy="30"
-              r="26"
-              fill="none"
-              stroke={isFocus ? "#f2a33c" : "#7fa07a"}
-              strokeWidth="7"
-              strokeDasharray={ring}
-              strokeDashoffset={ring * (1 - pct)}
-              style={{ transition: "stroke-dashoffset 1s linear, stroke 400ms ease" }}
-            />
-          </svg>
-          <div
-            className={`absolute inset-3 flex items-center justify-center border-2 border-[#0d0705] ${
-              isFocus ? "bg-[#3a241a]" : "bg-[#2c3a2c]"
-            }`}
-          >
-            <span className="font-display text-sm leading-none" style={{ color: isFocus ? "#f2a33c" : "#7fa07a" }}>
-              {isFocus ? "FOCUS" : "BREAK"}
-            </span>
-          </div>
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="font-display text-[42px] leading-none tracking-wide text-[#f4e7d3] tabular-nums">{fmt(left)}</div>
-          <div className="mt-1 flex items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-[0.16em] text-[#a8886a]">sessions</span>
-            <span className="flex gap-0.5">
-              {[0, 1, 2, 3].map((i) => (
-                <span
-                  key={i}
-                  className="inline-block h-2 w-2 border border-[#0d0705]"
-                  style={{ background: i < sessions % 4 || (sessions > 0 && sessions % 4 === 0 && i < 4 && sessions % 8 === 0) ? "#f2a33c" : "#2b1b14" }}
-                />
-              ))}
-            </span>
-            <span className="font-display ml-1 text-base leading-none text-[#d9a441]">×{sessions}</span>
-          </div>
+        <div className="mt-1 flex items-center justify-between font-term text-sm leading-none text-fadedink">
+          <span>{pct}% of leg</span>
+          <span className="text-amberglow">{sessions} ride{sessions === 1 ? "" : "s"} done</span>
         </div>
       </div>
 
-      <div className="mt-2.5 flex gap-1.5">
-        <button onClick={toggle} className={`px-btn flex-1 py-1 text-xl ${running ? "px-btn-ghost" : ""}`}>
-          {running ? "❚❚ PAUSE" : "▶ START"}
+      {/* booth shared-cycle note */}
+      {boothLine && (
+        <p className="mt-2 border-t-2 border-dashed border-[#3a241a] pt-1.5 font-term text-base leading-tight text-duskblue">
+          ◆ {boothLine}
+        </p>
+      )}
+
+      {/* controls */}
+      <div className="mt-2.5 flex gap-2">
+        <button onClick={toggle} className="px-btn flex-1 bg-[#e0763c] py-1.5 text-xl leading-none text-[#fff3e0]">
+          {running ? "❚❚ HOLD" : "▸ START"}
         </button>
-        <button onClick={skip} className="px-btn px-btn-dusk px-2 py-1 text-xl" title="Skip phase">
-          »
-        </button>
-        <button onClick={reset} className="px-btn px-btn-ghost px-2 py-1 text-xl" title="Reset">
+        <button onClick={reset} className="px-btn bg-[#3a241a] px-3 py-1.5 text-xl leading-none text-parchment">
           ↺
         </button>
       </div>
-
-      {/* study status */}
-      <div className="px-inset mt-2.5 px-2 py-1.5">
-        {hud.seated ? (
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="pulse-dot absolute h-2 w-2 bg-[#f2a33c]" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-display text-base leading-tight text-[#f2a33c]">FOCUS MODE · {hud.seatLabel}</p>
-              {hud.partnerName ? (
-                <p className="truncate text-[10px] text-[#a8886a]">
-                  Studying with {hud.partnerName}
-                  {hud.partnerFocusLeft !== null && ` · booth focus ${fmt(hud.partnerFocusLeft)}`}
-                </p>
-              ) : (
-                <p className="text-[10px] text-[#a8886a]">The booth is all yours</p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <p className="text-[10px] leading-snug text-[#8a6a4a]">
-            {hud.boarded ? "Take a booth seat to enter focus mode — press E near a free chair." : "Preparing the car…"}
-          </p>
-        )}
+      <div className="mt-2 flex gap-1.5">
+        {PRESETS.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => pick(p.id)}
+            className={`px-btn flex-1 py-1 text-base leading-none ${
+              presetId === p.id ? "bg-[#f2a33c] text-coal" : "bg-[#2c1b12] text-fadedink"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
-
-      {toast && (
-        <div className="toast-pop pointer-events-none absolute -bottom-10 left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-[#0d0705] bg-[#f2a33c] px-3 py-1 font-display text-base text-[#241305] shadow-[0_3px_0_#0d0705]">
-          {toast}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,297 +1,205 @@
-import { useEffect, useState } from "react";
-import type { SoundKit, SoundLayer } from "../game/audio";
+import { useMemo, useState, type RefObject } from "react";
 import type { Engine } from "../game/engine";
+import type { SoundKit } from "../game/audio";
 import type { EmoteKind, HudSnapshot } from "../game/types";
+import { getIcon } from "../game/sprites";
 
-/* ---------- tiny pixel-style SVG icons ---------- */
-function IconWave() {
-  return (
-    <svg viewBox="0 0 10 10" className="h-4 w-4" shapeRendering="crispEdges">
-      <rect x="4" y="2" width="4" height="5" fill="currentColor" />
-      <rect x="3" y="3" width="1" height="3" fill="currentColor" />
-      <rect x="8" y="3" width="1" height="3" fill="currentColor" />
-      <rect x="4" y="1" width="1" height="1" fill="currentColor" />
-      <rect x="7" y="1" width="1" height="1" fill="currentColor" />
-      <rect x="4" y="7" width="4" height="2" fill="#5f7fae" />
-      <rect x="1" y="2" width="1" height="1" fill="#f2c14e" />
-      <rect x="9" y="1" width="1" height="1" fill="#f2c14e" />
-    </svg>
-  );
-}
-function IconCoffee() {
-  return (
-    <svg viewBox="0 0 10 10" className="h-4 w-4" shapeRendering="crispEdges">
-      <rect x="2" y="4" width="6" height="5" fill="#e8d5b5" />
-      <rect x="2" y="4" width="6" height="1" fill="#b98d5e" />
-      <rect x="8" y="5" width="1" height="2" fill="#e8d5b5" />
-      <rect x="1" y="9" width="8" height="1" fill="#c9a86e" />
-      <rect x="3" y="2" width="1" height="1" fill="currentColor" />
-      <rect x="4" y="1" width="1" height="1" fill="currentColor" />
-      <rect x="5" y="2" width="1" height="1" fill="currentColor" />
-      <rect x="3" y="6" width="4" height="2" fill="#8a5a34" />
-    </svg>
-  );
-}
-function IconHeart() {
-  return (
-    <svg viewBox="0 0 10 10" className="h-4 w-4" shapeRendering="crispEdges">
-      <rect x="2" y="2" width="2" height="2" fill="currentColor" />
-      <rect x="6" y="2" width="2" height="2" fill="currentColor" />
-      <rect x="2" y="4" width="6" height="2" fill="currentColor" />
-      <rect x="3" y="6" width="4" height="1" fill="currentColor" />
-      <rect x="4" y="7" width="2" height="1" fill="#c9564a" />
-    </svg>
-  );
-}
-function IconMusic() {
-  return (
-    <svg viewBox="0 0 10 10" className="h-4 w-4" shapeRendering="crispEdges">
-      <rect x="3" y="2" width="1" height="6" fill="currentColor" />
-      <rect x="7" y="3" width="1" height="5" fill="currentColor" />
-      <rect x="3" y="2" width="5" height="1" fill="currentColor" />
-      <rect x="1" y="7" width="3" height="2" fill="#f2a33c" />
-      <rect x="5" y="8" width="3" height="2" fill="#f2a33c" />
-    </svg>
-  );
-}
-function IconSpeaker({ off }: { off: boolean }) {
-  return (
-    <svg viewBox="0 0 10 10" className="h-4 w-4" shapeRendering="crispEdges">
-      <rect x="1" y="3" width="2" height="4" fill="currentColor" />
-      <rect x="3" y="2" width="2" height="6" fill="currentColor" />
-      <rect x="5" y="1" width="1" height="8" fill="currentColor" />
-      {off ? (
-        <>
-          <rect x="6" y="3" width="1" height="1" fill="#e26d6d" />
-          <rect x="7" y="4" width="1" height="1" fill="#e26d6d" />
-          <rect x="8" y="5" width="1" height="1" fill="#e26d6d" />
-          <rect x="7" y="6" width="1" height="1" fill="#e26d6d" />
-          <rect x="6" y="7" width="1" height="1" fill="#e26d6d" />
-          <rect x="8" y="3" width="1" height="1" fill="#e26d6d" />
-          <rect x="6" y="5" width="1" height="1" fill="#e26d6d" />
-        </>
-      ) : (
-        <>
-          <rect x="7" y="3" width="1" height="4" fill="currentColor" />
-          <rect x="8" y="2" width="1" height="6" fill="currentColor" />
-        </>
-      )}
-    </svg>
-  );
-}
+/* ---------------- sound console ---------------- */
 
-/* ---------- sound dock ---------- */
-const LAYERS: Array<{ id: SoundLayer; label: string }> = [
-  { id: "rumble", label: "Rails" },
-  { id: "rain", label: "Rain" },
-  { id: "hum", label: "Café" },
+const LAYERS = [
+  { id: "rumble" as const, label: "RAILS", desc: "track rumble" },
+  { id: "rain" as const, label: "RAIN", desc: "on the roof" },
+  { id: "hum" as const, label: "CAFÉ", desc: "distant hum" },
 ];
 
-export function SoundDock({
-  sound,
-  onRain,
-}: {
-  sound: SoundKit;
-  onRain: (on: boolean) => void;
-}) {
-  const [active, setActive] = useState<Set<SoundLayer>>(new Set());
+export function SoundDock({ sound, onRain }: { sound: SoundKit; onRain: (on: boolean) => void }) {
+  const [on, setOn] = useState({ rumble: false, rain: false, hum: false });
   const [muted, setMuted] = useState(false);
 
-  const toggleLayer = (id: SoundLayer) => {
-    const next = new Set(active);
-    if (next.has(id)) {
-      next.delete(id);
-      sound.setLayer(id, false);
-      if (id === "rain") onRain(false);
-      sound.blip(420);
-    } else {
-      next.add(id);
-      sound.setLayer(id, true);
-      if (id === "rain") onRain(true);
-      sound.blip(760);
-    }
-    setActive(next);
+  const flip = (id: "rumble" | "rain" | "hum") => {
+    sound.init();
+    const next = !on[id];
+    setOn((o) => ({ ...o, [id]: next }));
+    sound.setLayer(id, next);
+    if (id === "rain") onRain(next);
+    sound.blip(next ? 840 : 420);
+  };
+  const mute = () => {
+    sound.init();
+    const next = !muted;
+    setMuted(next);
+    sound.setMuted(next);
+    if (!next) sound.blip(660);
   };
 
   return (
-    <div className="px-panel-dark flex items-center gap-1.5 p-1.5">
-      <button
-        onClick={() => {
-          const m = !muted;
-          setMuted(m);
-          sound.setMuted(m);
-        }}
-        className={`px-chip flex h-8 w-8 items-center justify-center transition-colors ${
-          muted ? "bg-[#3a241a] text-[#e26d6d]" : "bg-[#2b1b14] text-[#f2a33c] hover:bg-[#3a241a]"
-        }`}
-        title={muted ? "Unmute" : "Mute"}
-      >
-        <IconSpeaker off={muted} />
-      </button>
-      <span className="mx-0.5 h-6 w-0.5 bg-[#3a241a]" />
+    <div className="px-panel-dark flex items-center gap-2 p-2">
+      <span className="hidden pl-1 font-display text-[9px] font-bold tracking-widest text-fadedink md:block" style={{ writingMode: "vertical-rl" }}>
+        AMBIENCE
+      </span>
       {LAYERS.map((l) => (
-        <button
-          key={l.id}
-          onClick={() => toggleLayer(l.id)}
-          className={`px-chip px-2 py-1.5 font-display text-base leading-none transition-all ${
-            active.has(l.id)
-              ? "bg-[#f2a33c] text-[#241305] shadow-[inset_0_-2px_0_#b96f1e,0_2px_0_#0d0705]"
-              : "bg-[#2b1b14] text-[#a8886a] hover:text-[#e8d5b5]"
-          }`}
-          title={`Toggle ${l.label.toLowerCase()} ambience`}
-        >
-          {l.label}
+        <button key={l.id} onClick={() => flip(l.id)} className="console-switch flex flex-col items-center gap-1 px-1.5 py-1" title={l.desc}>
+          <span className={`led ${on[l.id] ? (l.id === "rain" ? "led-on-moss" : "led-on-amber") : ""} ${on[l.id] ? "led-blink" : ""}`} />
+          <span className={`font-term text-base leading-none ${on[l.id] ? "text-amberhi" : "text-fadedink"}`}>{l.label}</span>
+          {/* chunky rocker */}
+          <span className={`h-3.5 w-6 border-2 border-black ${on[l.id] ? "bg-[#e0763c]" : "bg-[#241610]"}`}>
+            <span className={`block h-1.5 w-2 bg-black/50 ${on[l.id] ? "ml-2" : "ml-0"}`} />
+          </span>
         </button>
       ))}
+      <button onClick={mute} className="console-switch ml-1 flex flex-col items-center gap-1 border-l-2 border-black px-2 py-1" title="Master mute">
+        <span className={`led ${muted ? "led-on-signal" : ""}`} />
+        <span className={`font-term text-base leading-none ${muted ? "text-signalred" : "text-fadedink"}`}>
+          {muted ? "MUTED" : "SOUND"}
+        </span>
+        <span className={`h-3.5 w-6 border-2 border-black ${muted ? "bg-[#5e3b2c]" : "bg-[#5d8a5e]"}`} />
+      </button>
     </div>
   );
 }
 
-/* ---------- emote bar ---------- */
-const EMOTES: Array<{ kind: EmoteKind; label: string; icon: () => React.ReactNode; key: string }> = [
-  { kind: "wave", label: "Wave", icon: IconWave, key: "G" },
-  { kind: "coffee", label: "Sip tea", icon: IconCoffee, key: "" },
-  { kind: "heart", label: "Appreciate", icon: IconHeart, key: "" },
-  { kind: "music", label: "Hum", icon: IconMusic, key: "" },
+/* ---------------- emote keycaps ---------------- */
+
+const EMOTES: Array<{ kind: EmoteKind; key: string; label: string }> = [
+  { kind: "wave", key: "G", label: "Wave" },
+  { kind: "coffee", key: "1", label: "Tea" },
+  { kind: "heart", key: "2", label: "Heart" },
+  { kind: "music", key: "3", label: "Hum" },
 ];
 
 export function EmoteBar({ onEmote }: { onEmote: (k: EmoteKind) => void }) {
+  const icons = useMemo(() => {
+    const m = new Map<EmoteKind, string>();
+    for (const e of EMOTES) m.set(e.kind, getIcon(e.kind).toDataURL());
+    return m;
+  }, []);
   return (
     <div className="px-panel-dark flex items-center gap-1.5 p-1.5">
       {EMOTES.map((e) => (
         <button
           key={e.kind}
           onClick={() => onEmote(e.kind)}
-          title={e.label + (e.key ? ` (${e.key})` : "")}
-          className="px-chip flex h-8 w-8 items-center justify-center bg-[#2b1b14] text-[#e8d5b5] transition-all hover:-translate-y-0.5 hover:bg-[#3a241a] hover:text-[#f2a33c] active:translate-y-0"
+          title={`${e.label} (${e.key})`}
+          className="console-switch relative flex h-10 w-10 flex-col items-center justify-center border-2 border-black bg-[#3a241a] shadow-[inset_0_2px_0_rgba(255,212,137,0.2),0_3px_0_#0d0705]"
         >
-          <e.icon />
+          <img src={icons.get(e.kind)} alt={e.label} className="h-5 w-5 [image-rendering:pixelated]" />
+          <span className="absolute right-0 top-0 bg-black px-0.5 font-term text-[11px] leading-tight text-amberglow">{e.key}</span>
         </button>
       ))}
     </div>
   );
 }
 
-/* ---------- presence list ---------- */
-export function PresenceList({ hud }: { hud: HudSnapshot }) {
-  if (!hud.boarded) return null;
+/* ---------------- presence board ---------------- */
+
+function MiniAvatar({ color }: { color: string }) {
   return (
-    <div className="px-panel-dark w-56 p-2.5">
+    <svg viewBox="0 0 8 8" className="h-4 w-4 shrink-0 border-2 border-black" shapeRendering="crispEdges" style={{ background: "#170d09" }}>
+      <rect x="2" y="0" width="4" height="3" fill="#e0b088" />
+      <rect x="2" y="0" width="4" height="1" fill="#3a2a24" />
+      <rect x="1" y="3" width="6" height="4" fill={color} />
+      <rect x="2" y="7" width="1" height="1" fill="#241a16" />
+      <rect x="5" y="7" width="1" height="1" fill="#241a16" />
+      <rect x="3" y="1" width="1" height="1" fill="#1d130f" />
+      <rect x="5" y="1" width="1" height="1" fill="#1d130f" />
+    </svg>
+  );
+}
+
+export function PresenceList({ hud }: { hud: HudSnapshot }) {
+  return (
+    <div className="px-panel-dark max-w-[240px] p-2">
       <div className="flex items-center justify-between">
-        <p className="font-display text-lg leading-none text-[#d9a441]">IN CAR 7</p>
-        <span className="px-chip bg-[#2b1b14] px-1.5 py-0.5 font-display text-sm leading-none text-[#7fa07a]">
-          {hud.passengers.length} aboard
-        </span>
+        <p className="font-display text-[9px] font-bold tracking-widest text-fadedink">PASSENGERS</p>
+        <span className="px-chip bg-[#170d09] px-1.5 py-0.5 font-term text-sm leading-none text-amberhi">{hud.passengers.length}</span>
       </div>
-      <ul className="mt-2 space-y-1">
-        {hud.passengers.map((p) => (
-          <li key={p.name} className={`flex items-center gap-2 px-1.5 py-1 ${p.isYou ? "bg-[#2b1b14]" : ""}`}>
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span
-                className={`h-2.5 w-2.5 border border-[#0d0705] ${p.activity.startsWith("Studying") ? "pulse-dot" : ""}`}
-                style={{ background: p.color }}
-              />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className={`font-display truncate text-base leading-none ${p.isYou ? "text-[#ffd489]" : "text-[#e8d5b5]"}`}>
+      <ul className="mt-1.5 space-y-1">
+        {hud.passengers.slice(0, 6).map((p) => {
+          const studying = p.activity.toLowerCase().includes("stud");
+          return (
+            <li key={p.name} className={`flex items-center gap-2 border-2 border-transparent px-1 py-0.5 ${p.isYou ? "border-[#4a2e1e] bg-[#241610aa]" : ""}`}>
+              <MiniAvatar color={p.color} />
+              <span className={`min-w-0 flex-1 truncate font-term text-base leading-tight ${p.isYou ? "text-amberhi" : "text-parchment"}`}>
                 {p.name}
-                {p.isYou && <span className="ml-1 text-[#8a6a4a]">(you)</span>}
-              </p>
-              <p className="truncate text-[10px] leading-tight text-[#8a6a4a]">{p.activity}</p>
-            </div>
-          </li>
-        ))}
+                {p.isYou ? " (you)" : ""}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className={`led ${studying ? "led-on-amber" : ""}`} />
+                <span className="hidden w-16 truncate text-right font-term text-[13px] leading-none text-fadedink sm:block">{p.activity}</span>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
 }
 
-/* ---------- key legend ---------- */
+/* ---------------- key legend ---------------- */
+
 export function KeysLegend() {
-  const Key = ({ k }: { k: string }) => (
-    <span className="px-chip inline-block min-w-[22px] bg-[#2b1b14] px-1 py-0.5 text-center font-display text-sm leading-none text-[#e8d5b5]">
-      {k}
-    </span>
-  );
+  const Key = ({ k }: { k: string }) => <span className="keycap">{k}</span>;
   return (
-    <div className="px-panel-dark hidden items-center gap-3 px-3 py-2 md:flex">
+    <div className="flex items-center gap-3 font-term text-base leading-none text-[#a8886a]">
       <span className="flex items-center gap-1">
         <Key k="W" />
         <Key k="A" />
         <Key k="S" />
         <Key k="D" />
-        <span className="ml-1 text-[10px] uppercase tracking-wider text-[#8a6a4a]">walk</span>
+        <span className="ml-1 hidden sm:inline">wander</span>
       </span>
       <span className="flex items-center gap-1">
-        <Key k="E" />
-        <span className="ml-1 text-[10px] uppercase tracking-wider text-[#8a6a4a]">sit / stand</span>
+        <Key k="E" /> sit / stand
       </span>
-      <span className="flex items-center gap-1">
-        <Key k="G" />
-        <span className="ml-1 text-[10px] uppercase tracking-wider text-[#8a6a4a]">wave</span>
+      <span className="hidden items-center gap-1 md:flex">
+        <Key k="G" /> wave
       </span>
     </div>
   );
 }
 
-/* ---------- touch controls ---------- */
-export function TouchPad({ engine }: { engine: React.RefObject<Engine | null> }) {
-  const [coarse, setCoarse] = useState(false);
-  useEffect(() => {
-    setCoarse(window.matchMedia("(pointer: coarse)").matches);
-  }, []);
-  if (!coarse) return null;
+/* ---------------- touch pad ---------------- */
 
-  const hold = (dir: "up" | "down" | "left" | "right") => ({
-    onPointerDown: (e: React.PointerEvent) => {
-      e.preventDefault();
-      engine.current?.setVirtualKey(dir, true);
-    },
-    onPointerUp: () => engine.current?.setVirtualKey(dir, false),
-    onPointerLeave: () => engine.current?.setVirtualKey(dir, false),
-    onPointerCancel: () => engine.current?.setVirtualKey(dir, false),
-  });
-
-  const PadBtn = ({ label, dir, className }: { label: string; dir: "up" | "down" | "left" | "right"; className: string }) => (
+export function TouchPad({ engine }: { engine: RefObject<Engine | null> }) {
+  const [active, setActive] = useState(false);
+  const hold = (dir: "up" | "down" | "left" | "right", down: boolean) => {
+    engine.current?.setVirtualKey(dir, down);
+    setActive(down);
+  };
+  const PadBtn = ({ dir, label, className }: { dir: "up" | "down" | "left" | "right"; label: string; className?: string }) => (
     <button
-      {...hold(dir)}
-      className={`px-btn px-btn-ghost absolute h-12 w-12 select-none text-2xl leading-none ${className}`}
-      style={{ touchAction: "none" }}
+      className={`px-btn flex h-11 w-11 items-center justify-center bg-[#2c1b12] text-xl leading-none text-amberhi ${className ?? ""}`}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        hold(dir, true);
+      }}
+      onPointerUp={() => hold(dir, false)}
+      onPointerLeave={() => hold(dir, false)}
+      onPointerCancel={() => hold(dir, false)}
+      aria-label={`Move ${dir}`}
     >
       {label}
     </button>
   );
-
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex items-end justify-between px-4">
-      <div className="pointer-events-auto relative h-[152px] w-[152px]">
-        <PadBtn label="▲" dir="up" className="left-[52px] top-0" />
-        <PadBtn label="▼" dir="down" className="bottom-0 left-[52px]" />
-        <PadBtn label="◀" dir="left" className="left-0 top-[52px]" />
-        <PadBtn label="▶" dir="right" className="right-0 top-[52px]" />
+    <div className={`absolute bottom-3 left-3 z-20 flex items-end gap-3 sm:hidden ${active ? "opacity-90" : "opacity-70"}`}>
+      <div className="grid grid-cols-3 gap-1">
+        <span />
+        <PadBtn dir="up" label="▲" />
+        <span />
+        <PadBtn dir="left" label="◀" />
+        <PadBtn dir="down" label="▼" />
+        <PadBtn dir="right" label="▶" />
       </div>
-      <div className="pointer-events-auto flex flex-col items-end gap-2">
-        <button
-          onPointerDown={(e) => {
-            e.preventDefault();
-            engine.current?.emote("wave");
-          }}
-          className="px-btn px-btn-dusk h-12 w-12 text-2xl"
-          style={{ touchAction: "none" }}
-        >
-          <span className="flex justify-center"><IconWave /></span>
-        </button>
-        <button
-          onPointerDown={(e) => {
-            e.preventDefault();
-            engine.current?.virtualAction();
-          }}
-          className="px-btn h-16 w-16 text-3xl"
-          style={{ touchAction: "none" }}
-        >
-          E
-        </button>
-      </div>
+      <button
+        className="px-btn h-14 w-14 bg-[#e0763c] font-term text-xl leading-none text-[#fff3e0]"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          engine.current?.virtualAction();
+        }}
+      >
+        E
+      </button>
     </div>
   );
 }
