@@ -14,12 +14,26 @@ function mmss(total: number) {
   return `${String(m).padStart(2, "0")}${String(s).padStart(2, "0")}`;
 }
 
-/* one split-flap tile; remounts (and flips) only when its character changes */
+/* one split-flap tile */
 function Tile({ ch, w }: { ch: string; w?: string }) {
   return (
-    <span key={ch} className={`flap flap-flip ${w ?? "h-9 w-7 text-xl md:h-10 md:w-8 md:text-2xl"}`}>
+    <span key={ch} className={`nes-flap nes-flap-flip ${w ?? "h-9 w-7 text-xl md:h-10 md:w-8 md:text-2xl"}`}>
       {ch}
     </span>
+  );
+}
+
+/* NES-style pixel icons */
+function BookIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 10 10" className={`h-4 w-4 ${className}`} shapeRendering="crispEdges">
+      <rect x="1" y="2" width="8" height="6" fill="#0f172a" />
+      <rect x="1" y="2" width="3" height="5" fill="#f8fafc" />
+      <rect x="6" y="2" width="3" height="5" fill="#e2e8f0" />
+      <rect x="4" y="2" width="2" height="5" fill="#0f172a" />
+      <rect x="2" y="3" width="1" height="2" fill="#94a3b8" />
+      <rect x="7" y="4" width="1" height="2" fill="#94a3b8" />
+    </svg>
   );
 }
 
@@ -44,7 +58,6 @@ export default function PomodoroCard({ sound, hud }: { sound: SoundKit; hud: Hud
     return () => window.clearInterval(iv);
   }, [running]);
 
-  // phase transition
   useEffect(() => {
     if (left !== 0 || !running) return;
     if (phase === "focus") {
@@ -92,18 +105,21 @@ export default function PomodoroCard({ sound, hud }: { sound: SoundKit; hud: Hud
   }, [hud]);
 
   return (
-    <div className="px-panel-dark w-[248px] p-3 md:w-[268px]">
+    <div className="nes-card w-[248px] p-3 md:w-[268px]">
       {/* header */}
       <div className="flex items-center justify-between">
-        <p className="font-display text-[10px] font-bold tracking-widest text-fadedink">FOCUS LINE</p>
+        <div className="flex items-center gap-2">
+          <BookIcon className="text-cyan" />
+          <p className="font-display text-[10px] font-bold tracking-widest text-faded">FOCUS LINE</p>
+        </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1">
-            <span className={`led ${phase === "focus" && running ? "led-on-signal led-blink" : ""}`} />
-            <span className="font-term text-sm leading-none text-[#a8886a]">FOC</span>
+            <span className={`nes-led ${phase === "focus" && running ? "nes-led-pink nes-led-blink" : ""}`} />
+            <span className="font-term text-sm leading-none text-muted">FOC</span>
           </span>
           <span className="flex items-center gap-1">
-            <span className={`led ${phase === "break" && running ? "led-on-moss led-blink" : ""}`} />
-            <span className="font-term text-sm leading-none text-[#a8886a]">BRK</span>
+            <span className={`nes-led ${phase === "break" && running ? "nes-led-lime nes-led-blink" : ""}`} />
+            <span className="font-term text-sm leading-none text-muted">BRK</span>
           </span>
         </div>
       </div>
@@ -112,50 +128,49 @@ export default function PomodoroCard({ sound, hud }: { sound: SoundKit; hud: Hud
       <div className="mt-2.5 flex items-center justify-center gap-[3px]">
         <Tile ch={digits[0]} />
         <Tile ch={digits[1]} />
-        <span className={`font-display text-lg text-amberglow ${running ? "pulse-dot" : ""}`}>:</span>
+        <span className={`font-display text-lg ${running ? "pulse-dot text-cyan" : "text-muted"}`}>:</span>
         <Tile ch={digits[2]} />
         <Tile ch={digits[3]} />
       </div>
 
       {/* departure-board status line */}
-      <p className="mt-2 truncate border-2 border-black bg-coal px-2 py-1 text-center font-term text-lg leading-none tracking-wider">
-        <span className={phase === "focus" ? "text-signalred" : "text-moss"}>
+      <p className="mt-2 truncate border-4 border-navy bg-navy px-2 py-1 text-center font-term text-lg leading-none tracking-wider">
+        <span className={phase === "focus" ? "text-pink" : "text-lime"}>
           {running ? (phase === "focus" ? "NOW DEPARTING · FOCUS" : "NOW DEPARTING · BREAK") : phase === "focus" ? "HELD AT PLATFORM · READY" : "HELD · BREAK READY"}
         </span>
-        <span className="pulse-dot text-amberhi">▮</span>
+        <span className="pulse-dot text-cyan">▮</span>
       </p>
 
       {/* route progress */}
       <div className="mt-2.5 px-0.5">
-        <div className="relative h-[10px] border-2 border-black bg-coal">
+        <div className="relative h-[10px] border-4 border-navy bg-navy">
           <div
-            className={`absolute inset-y-0 left-0 transition-all duration-500 ${phase === "focus" ? "bg-[#e0763c]" : "bg-[#5d8a5e]"}`}
+            className={`absolute inset-y-0 left-0 transition-all duration-500 ${phase === "focus" ? "bg-pink" : "bg-lime"}`}
             style={{ width: `${pct}%` }}
           />
-          {/* station ticks */}
           {[25, 50, 75].map((t) => (
-            <span key={t} className="absolute top-0 h-full w-[2px] bg-black/60" style={{ left: `${t}%` }} />
+            <span key={t} className="absolute top-0 h-full w-[2px] bg-navy" style={{ left: `${t}%` }} />
           ))}
         </div>
-        <div className="mt-1 flex items-center justify-between font-term text-sm leading-none text-fadedink">
-          <span>{pct}% of leg</span>
-          <span className="text-amberglow">{sessions} ride{sessions === 1 ? "" : "s"} done</span>
+        <div className="mt-1 flex items-center justify-between font-term text-sm leading-none">
+          <span className="text-faded">{pct}% of leg</span>
+          <span className="text-cyan">{sessions} ride{sessions === 1 ? "" : "s"} done</span>
         </div>
       </div>
 
       {/* booth shared-cycle note */}
       {boothLine && (
-        <p className="mt-2 border-t-2 border-dashed border-[#3a241a] pt-1.5 font-term text-base leading-tight text-duskblue">
+        <p className="mt-2 border-t-4 border-dashed border-navy pt-1.5 font-term text-base leading-tight text-purple">
           ◆ {boothLine}
         </p>
       )}
 
       {/* controls */}
       <div className="mt-2.5 flex gap-2">
-        <button onClick={toggle} className="px-btn flex-1 bg-[#e0763c] py-1.5 text-xl leading-none text-[#fff3e0]">
+        <button onClick={toggle} className={`nes-btn flex-1 ${running ? "nes-btn-secondary" : "nes-btn-primary"}`}>
           {running ? "❚❚ HOLD" : "▸ START"}
         </button>
-        <button onClick={reset} className="px-btn bg-[#3a241a] px-3 py-1.5 text-xl leading-none text-parchment">
+        <button onClick={reset} className="nes-btn nes-btn-secondary">
           ↺
         </button>
       </div>
@@ -164,9 +179,7 @@ export default function PomodoroCard({ sound, hud }: { sound: SoundKit; hud: Hud
           <button
             key={p.id}
             onClick={() => pick(p.id)}
-            className={`px-btn flex-1 py-1 text-base leading-none ${
-              presetId === p.id ? "bg-[#f2a33c] text-coal" : "bg-[#2c1b12] text-fadedink"
-            }`}
+            className={`nes-btn flex-1 ${presetId === p.id ? "nes-btn-lime" : "nes-btn-secondary"}`}
           >
             {p.label}
           </button>
