@@ -1,22 +1,38 @@
-/* Procedural pixel-art factory: avatar sprite sheets (4-dir walk cycles),
-   emote/status icons, portraits, and color utilities. Everything is drawn
-   with 1px rects onto offscreen canvases — no external assets. */
+/* Enhanced procedural pixel-art factory: detailed avatar sprite sheets (4-dir walk cycles),
+    emote/status icons, portraits, and color utilities. Everything is drawn
+    with 1px rects onto offscreen canvases — no external assets.
+    
+    Following modern 16x16 pixel art character design principles:
+    - Larger, rounder heads for cuter proportions
+    - More detailed hair with highlights
+    - Bigger, more expressive eyes
+    - Better clothing details and shading
+    - Enhanced accessories */
 
 export interface AvatarPalette {
   skin: string;
   skinShade: string;
+  skinHighlight: string;
   hair: string;
   hairShade: string;
+  hairHighlight: string;
   sweater: string;
   sweaterShade: string;
+  sweaterHighlight: string;
   pants: string;
+  pantsShade: string;
   shoes: string;
+  shoesShade: string;
   hat: string;
   hatShade: string;
+  hatHighlight: string;
   scarf: string;
   scarfShade: string;
+  scarfHighlight: string;
   ink: string;
   blush: string;
+  eyeWhite: string;
+  eyeHighlight: string;
 }
 
 export interface Swatch {
@@ -35,8 +51,8 @@ export const SWATCHES: Swatch[] = [
   { id: "plum", label: "Plum", c: "#8a5a7a", hat: "#f2a33c" },
 ];
 
-export const SKINS = ["#f0c8a0", "#e0b088", "#c98d5e", "#a5673f", "#7c4a2e"];
-const HAIRS = ["#3a2a24", "#241d24", "#5a3a2a", "#6e5a3a", "#2e2e3a", "#7a4a3a"];
+export const SKINS = ["#f5d5b8", "#e8c4a0", "#d4a574", "#b8865c", "#8b6242"];
+const HAIRS = ["#3a2a24", "#241d24", "#5a3a2a", "#6e5a3a", "#2e2e3a", "#7a4a3a", "#8b4513", "#654321"];
 
 export function darken(hex: string, f: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -46,22 +62,39 @@ export function darken(hex: string, f: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
+export function lighten(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 255) * (1 + f)));
+  const g = Math.min(255, Math.round(((n >> 8) & 255) * (1 + f)));
+  const b = Math.min(255, Math.round((n & 255) * (1 + f)));
+  return `rgb(${r},${g},${b})`;
+}
+
 export function makePalette(sweater: string, hatColor: string, skin: string, hair: string): AvatarPalette {
   return {
     skin,
-    skinShade: darken(skin, 0.18),
+    skinShade: darken(skin, 0.15),
+    skinHighlight: lighten(skin, 0.15),
     hair,
-    hairShade: darken(hair, 0.3),
+    hairShade: darken(hair, 0.25),
+    hairHighlight: lighten(hair, 0.2),
     sweater,
-    sweaterShade: darken(sweater, 0.28),
-    pants: "#3d3448",
-    shoes: "#241a16",
+    sweaterShade: darken(sweater, 0.25),
+    sweaterHighlight: lighten(sweater, 0.2),
+    pants: "#4a4158",
+    pantsShade: darken("#4a4158", 0.2),
+    shoes: "#2a1f1a",
+    shoesShade: darken("#2a1f1a", 0.15),
     hat: hatColor,
-    hatShade: darken(hatColor, 0.3),
+    hatShade: darken(hatColor, 0.25),
+    hatHighlight: lighten(hatColor, 0.25),
     scarf: "#c9564a",
-    scarfShade: darken("#c9564a", 0.3),
-    ink: "#1d130f",
-    blush: "#e2907a",
+    scarfShade: darken("#c9564a", 0.25),
+    scarfHighlight: lighten("#c9564a", 0.2),
+    ink: "#1a1210",
+    blush: "#e8a090",
+    eyeWhite: "#ffffff",
+    eyeHighlight: "#ffffff",
   };
 }
 
@@ -92,112 +125,224 @@ export const SHEET_COLS = 6;
 function drawDown(g: G, p: AvatarPalette, acc: string, frame: number) {
   const beanie = acc === "beanie";
   const scarf = acc === "scarf";
-  // hair / hat
+  
+  // === HAIR / HAT (larger, rounder) ===
   if (beanie) {
-    rect(g, 4, 1, 8, 2, p.hat);
-    px(g, 7, 0, p.hat);
-    px(g, 8, 0, p.hat);
-    rect(g, 3, 3, 10, 1, p.hatShade);
-    rect(g, 3, 4, 10, 1, p.hair);
+    // Beanie with pattern
+    rect(g, 3, 0, 10, 1, p.hatHighlight);
+    rect(g, 3, 1, 10, 2, p.hat);
+    rect(g, 2, 3, 12, 1, p.hatShade);
+    // Beanie fold
+    rect(g, 2, 4, 12, 1, p.hat);
+    // Hair peeking out
+    rect(g, 3, 5, 10, 1, p.hair);
+    rect(g, 4, 6, 2, 1, p.hairShade);
+    rect(g, 10, 6, 2, 1, p.hairShade);
   } else {
-    rect(g, 4, 1, 8, 1, p.hair);
-    rect(g, 3, 2, 10, 2, p.hair);
-    rect(g, 3, 4, 10, 1, p.hairShade);
+    // Detailed hair with volume
+    rect(g, 4, 0, 8, 1, p.hairHighlight);
+    rect(g, 3, 1, 10, 1, p.hair);
+    rect(g, 2, 2, 12, 2, p.hair);
+    rect(g, 2, 4, 12, 2, p.hairShade);
+    // Hair strands
+    rect(g, 3, 3, 1, 2, p.hairHighlight);
+    rect(g, 12, 3, 1, 2, p.hairHighlight);
+    // Side hair
+    rect(g, 2, 6, 2, 2, p.hair);
+    rect(g, 12, 6, 2, 2, p.hair);
   }
-  // face
-  rect(g, 4, 5, 8, 3, p.skin);
-  rect(g, 3, 5, 1, 2, p.hair);
-  rect(g, 12, 5, 1, 2, p.hair);
-  px(g, 6, 6, p.ink);
-  px(g, 9, 6, p.ink);
-  px(g, 5, 7, p.blush);
-  px(g, 10, 7, p.blush);
-  // neck + torso
+  
+  // === FACE (larger, rounder) ===
+  rect(g, 4, 6, 8, 4, p.skin);
+  rect(g, 3, 7, 1, 2, p.skinShade);
+  rect(g, 12, 7, 1, 2, p.skinShade);
+  // Cheek highlights
+  rect(g, 5, 7, 1, 1, p.skinHighlight);
+  rect(g, 10, 7, 1, 1, p.skinHighlight);
+  
+  // === EYES (bigger, more expressive) ===
+  // Eye whites
+  rect(g, 5, 7, 2, 2, p.eyeWhite);
+  rect(g, 9, 7, 2, 2, p.eyeWhite);
+  // Pupils
+  px(g, 6, 8, p.ink);
+  px(g, 10, 8, p.ink);
+  // Eye highlights
+  px(g, 5, 7, p.eyeHighlight);
+  px(g, 9, 7, p.eyeHighlight);
+  
+  // Nose hint
+  px(g, 7, 9, p.skinShade);
+  px(g, 8, 9, p.skinShade);
+  
+  // Mouth
+  rect(g, 6, 10, 4, 1, p.skinShade);
+  px(g, 7, 10, p.blush);
+  px(g, 8, 10, p.blush);
+  
+  // Blush
+  px(g, 4, 8, p.blush);
+  px(g, 11, 8, p.blush);
+  
+  // === NECK & TORSO ===
   if (scarf) {
-    rect(g, 4, 8, 8, 1, p.scarf);
-    rect(g, 10, 9, 2, 2, p.scarfShade);
+    rect(g, 4, 10, 8, 1, p.scarf);
+    rect(g, 4, 11, 2, 2, p.scarfShade);
+    rect(g, 10, 11, 2, 2, p.scarfShade);
+    rect(g, 5, 11, 1, 1, p.scarfHighlight);
   }
-  rect(g, 4, 9, 8, 3, p.sweater);
-  rect(g, 4, 9, 1, 3, p.sweaterShade);
-  rect(g, 11, 9, 1, 3, p.sweaterShade);
-  // arms + hands (swing on walk frames)
+  
+  // Sweater with details
+  rect(g, 4, 11, 8, 3, p.sweater);
+  rect(g, 4, 11, 1, 3, p.sweaterShade);
+  rect(g, 11, 11, 1, 3, p.sweaterShade);
+  rect(g, 5, 11, 1, 1, p.sweaterHighlight);
+  // Sweater pattern
+  rect(g, 6, 12, 4, 1, p.sweaterShade);
+  
+  // === ARMS ===
   const swing = frame === 2 ? -1 : frame === 4 ? 1 : 0;
-  rect(g, 3, 9, 1, 2, p.sweaterShade);
-  rect(g, 12, 9, 1, 2, p.sweaterShade);
-  px(g, 3, 11 + Math.min(0, swing), p.skin);
-  px(g, 12, 11 + Math.max(0, -swing), p.skin);
-  // legs + shoes
+  rect(g, 3, 11, 1, 2, p.sweaterShade);
+  rect(g, 12, 11, 1, 2, p.sweaterShade);
+  // Hands
+  px(g, 3, 13 + Math.min(0, swing), p.skin);
+  px(g, 12, 13 + Math.max(0, -swing), p.skin);
+  
+  // === LEGS & SHOES ===
   const leftUp = frame === 2;
   const rightUp = frame === 4;
-  rect(g, 5, 12, 2, leftUp ? 1 : 2, p.pants);
-  rect(g, 9, 12, 2, rightUp ? 1 : 2, p.pants);
-  rect(g, 5, leftUp ? 13 : 14, 2, 1, p.shoes);
-  rect(g, 9, rightUp ? 13 : 14, 2, 1, p.shoes);
+  rect(g, 5, 14, 2, leftUp ? 1 : 2, p.pants);
+  rect(g, 9, 14, 2, rightUp ? 1 : 2, p.pants);
+  rect(g, 5, 14, 1, leftUp ? 1 : 2, p.pantsShade);
+  rect(g, 9, 14, 1, rightUp ? 1 : 2, p.pantsShade);
+  // Shoes
+  rect(g, 5, leftUp ? 15 : 16, 2, 1, p.shoes);
+  rect(g, 9, rightUp ? 15 : 16, 2, 1, p.shoes);
+  rect(g, 5, leftUp ? 15 : 16, 1, 1, p.shoesShade);
+  rect(g, 9, rightUp ? 15 : 16, 1, 1, p.shoesShade);
 }
 
 function drawUp(g: G, p: AvatarPalette, acc: string, frame: number) {
   const beanie = acc === "beanie";
   const scarf = acc === "scarf";
+  
+  // === HAIR / HAT (back view) ===
   if (beanie) {
-    rect(g, 4, 1, 8, 2, p.hat);
-    px(g, 7, 0, p.hat);
-    px(g, 8, 0, p.hat);
-    rect(g, 3, 3, 10, 1, p.hatShade);
-    rect(g, 3, 4, 10, 4, p.hair);
+    rect(g, 3, 0, 10, 1, p.hatHighlight);
+    rect(g, 3, 1, 10, 2, p.hat);
+    rect(g, 2, 3, 12, 1, p.hatShade);
+    rect(g, 2, 4, 12, 1, p.hat);
+    rect(g, 3, 5, 10, 3, p.hair);
+    rect(g, 4, 6, 2, 2, p.hairShade);
+    rect(g, 10, 6, 2, 2, p.hairShade);
   } else {
-    rect(g, 4, 1, 8, 1, p.hair);
-    rect(g, 3, 2, 10, 6, p.hair);
+    rect(g, 4, 0, 8, 1, p.hairHighlight);
+    rect(g, 3, 1, 10, 1, p.hair);
+    rect(g, 2, 2, 12, 2, p.hair);
+    rect(g, 2, 4, 12, 4, p.hairShade);
+    rect(g, 3, 3, 1, 3, p.hairHighlight);
+    rect(g, 12, 3, 1, 3, p.hairHighlight);
+    rect(g, 2, 8, 2, 1, p.hair);
+    rect(g, 12, 8, 2, 1, p.hair);
   }
+  
+  // === NECK ===
   if (scarf) {
-    rect(g, 4, 8, 8, 1, p.scarf);
-    rect(g, 6, 9, 2, 2, p.scarfShade);
+    rect(g, 4, 10, 8, 1, p.scarf);
+    rect(g, 6, 11, 4, 2, p.scarfShade);
+    rect(g, 7, 11, 2, 1, p.scarfHighlight);
   }
-  rect(g, 4, 9, 8, 3, p.sweater);
-  rect(g, 4, 9, 1, 3, p.sweaterShade);
-  rect(g, 11, 9, 1, 3, p.sweaterShade);
-  rect(g, 3, 9, 1, 2, p.sweaterShade);
-  rect(g, 12, 9, 1, 2, p.sweaterShade);
+  
+  // === TORSO (back) ===
+  rect(g, 4, 11, 8, 3, p.sweater);
+  rect(g, 4, 11, 1, 3, p.sweaterShade);
+  rect(g, 11, 11, 1, 3, p.sweaterShade);
+  rect(g, 5, 11, 1, 1, p.sweaterHighlight);
+  rect(g, 6, 12, 4, 1, p.sweaterShade);
+  
+  // === ARMS ===
+  rect(g, 3, 11, 1, 2, p.sweaterShade);
+  rect(g, 12, 11, 1, 2, p.sweaterShade);
+  
+  // === LEGS & SHOES ===
   const leftUp = frame === 2;
   const rightUp = frame === 4;
-  rect(g, 5, 12, 2, leftUp ? 1 : 2, p.pants);
-  rect(g, 9, 12, 2, rightUp ? 1 : 2, p.pants);
-  rect(g, 5, leftUp ? 13 : 14, 2, 1, p.shoes);
-  rect(g, 9, rightUp ? 13 : 14, 2, 1, p.shoes);
+  rect(g, 5, 14, 2, leftUp ? 1 : 2, p.pants);
+  rect(g, 9, 14, 2, rightUp ? 1 : 2, p.pants);
+  rect(g, 5, 14, 1, leftUp ? 1 : 2, p.pantsShade);
+  rect(g, 9, 14, 1, rightUp ? 1 : 2, p.pantsShade);
+  rect(g, 5, leftUp ? 15 : 16, 2, 1, p.shoes);
+  rect(g, 9, rightUp ? 15 : 16, 2, 1, p.shoes);
+  rect(g, 5, leftUp ? 15 : 16, 1, 1, p.shoesShade);
+  rect(g, 9, rightUp ? 15 : 16, 1, 1, p.shoesShade);
 }
 
 function drawSide(g: G, p: AvatarPalette, acc: string, frame: number) {
   const beanie = acc === "beanie";
   const scarf = acc === "scarf";
+  
+  // === HAIR / HAT (side view) ===
   if (beanie) {
-    rect(g, 5, 1, 7, 2, p.hat);
-    px(g, 8, 0, p.hat);
-    rect(g, 4, 3, 8, 1, p.hatShade);
-    rect(g, 4, 4, 8, 1, p.hair);
+    rect(g, 4, 0, 8, 1, p.hatHighlight);
+    rect(g, 4, 1, 8, 2, p.hat);
+    rect(g, 3, 3, 9, 1, p.hatShade);
+    rect(g, 3, 4, 9, 1, p.hat);
+    rect(g, 4, 5, 8, 1, p.hair);
+    rect(g, 5, 6, 2, 1, p.hairShade);
   } else {
-    rect(g, 5, 1, 7, 2, p.hair);
-    rect(g, 4, 3, 8, 2, p.hair);
+    rect(g, 5, 0, 7, 1, p.hairHighlight);
+    rect(g, 4, 1, 8, 1, p.hair);
+    rect(g, 3, 2, 9, 2, p.hair);
+    rect(g, 3, 4, 9, 2, p.hairShade);
+    rect(g, 4, 3, 1, 2, p.hairHighlight);
+    rect(g, 11, 3, 1, 2, p.hairHighlight);
+    rect(g, 3, 6, 2, 2, p.hair);
   }
-  rect(g, 6, 5, 6, 3, p.skin);
-  rect(g, 4, 5, 3, 3, p.hair); // back of head
-  rect(g, 6, 5, 5, 1, p.hairShade); // fringe
-  px(g, 10, 6, p.ink);
-  px(g, 10, 7, p.blush);
+  
+  // === FACE (side view) ===
+  rect(g, 6, 6, 6, 4, p.skin);
+  rect(g, 5, 7, 1, 2, p.skinShade);
+  rect(g, 6, 7, 1, 1, p.skinHighlight);
+  
+  // === EYE (side view - one eye visible) ===
+  rect(g, 9, 7, 2, 2, p.eyeWhite);
+  px(g, 10, 8, p.ink);
+  px(g, 9, 7, p.eyeHighlight);
+  
+  // Nose
+  px(g, 11, 9, p.skinShade);
+  
+  // Mouth
+  rect(g, 10, 10, 2, 1, p.skinShade);
+  px(g, 10, 10, p.blush);
+  
+  // Blush
+  px(g, 8, 8, p.blush);
+  
+  // === NECK & TORSO ===
   if (scarf) {
-    rect(g, 5, 8, 7, 1, p.scarf);
-    rect(g, 5, 9, 2, 2, p.scarfShade);
+    rect(g, 5, 10, 7, 1, p.scarf);
+    rect(g, 5, 11, 2, 2, p.scarfShade);
+    rect(g, 6, 11, 1, 1, p.scarfHighlight);
   }
-  rect(g, 5, 9, 7, 3, p.sweater);
-  rect(g, 5, 9, 1, 3, p.sweaterShade);
-  // front arm swings
+  
+  rect(g, 5, 11, 7, 3, p.sweater);
+  rect(g, 5, 11, 1, 3, p.sweaterShade);
+  rect(g, 6, 11, 1, 1, p.sweaterHighlight);
+  rect(g, 7, 12, 4, 1, p.sweaterShade);
+  
+  // === ARM ===
   const swing = frame === 2 ? -1 : frame === 4 ? 1 : 0;
-  rect(g, 9, 9, 2, 2, p.sweaterShade);
-  px(g, 10, 11 + swing, p.skin);
-  // legs stride
+  rect(g, 9, 11, 2, 2, p.sweaterShade);
+  px(g, 10, 13 + swing, p.skin);
+  
+  // === LEGS & SHOES ===
   const stride = frame === 2 ? 1 : frame === 4 ? -1 : 0;
-  rect(g, 6 + stride, 12, 2, 2, p.pants);
-  rect(g, 8 - stride, 12, 2, 2, darken(p.pants, 0.25));
-  rect(g, 6 + stride, 14, 2, 1, p.shoes);
-  rect(g, 8 - stride, 14, 2, 1, darken(p.shoes, 0.2));
+  rect(g, 6 + stride, 14, 2, 2, p.pants);
+  rect(g, 8 - stride, 14, 2, 2, p.pantsShade);
+  rect(g, 6 + stride, 14, 1, 2, p.pantsShade);
+  rect(g, 6 + stride, 16, 2, 1, p.shoes);
+  rect(g, 8 - stride, 16, 2, 1, p.shoesShade);
 }
 
 const sheetCache = new Map<string, HTMLCanvasElement>();
@@ -228,11 +373,11 @@ export function buildSheet(sweater: string, hat: string, skin: string, hair: str
 /* Eye positions per direction for the blink overlay (tile-space px). */
 export const EYE_SPOTS: Record<string, Array<[number, number]>> = {
   down: [
-    [6, 6],
-    [9, 6],
+    [6, 8],
+    [10, 8],
   ],
-  right: [[10, 6]],
-  left: [[5, 6]],
+  right: [[10, 8]],
+  left: [[5, 8]],
   up: [],
 };
 
