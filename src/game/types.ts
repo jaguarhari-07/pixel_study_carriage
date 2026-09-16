@@ -6,11 +6,13 @@
 export type Dir = "down" | "up" | "left" | "right";
 export type EmoteKind = "wave" | "coffee" | "heart" | "music";
 export type Accessory = "none" | "beanie" | "scarf";
+export type Gender = "male" | "female";
 
 export interface Identity {
   name: string;
   sweater: string; // hex color key
   accessory: Accessory;
+  gender: Gender;
 }
 
 export interface Vec {

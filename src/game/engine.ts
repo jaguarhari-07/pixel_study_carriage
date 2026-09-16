@@ -45,13 +45,14 @@ interface BotSpec {
   accessory: "none" | "beanie" | "scarf";
   skin: string;
   hair: string;
+  gender: "male" | "female";
 }
 
 const BOT_SPECS: BotSpec[] = [
-  { id: "mira", name: "Mira", sweaterId: "rose", accessory: "scarf", skin: SKINS[0], hair: "#5a3a2a" },
-  { id: "jun", name: "Jun", sweaterId: "moss", accessory: "beanie", skin: SKINS[3], hair: "#241d24" },
-  { id: "ada", name: "Ada", sweaterId: "gold", accessory: "none", skin: SKINS[1], hair: "#6e5a3a" },
-  { id: "theo", name: "Theo", sweaterId: "dusk", accessory: "none", skin: SKINS[4], hair: "#2e2e3a" },
+  { id: "mira", name: "Mira", sweaterId: "rose", accessory: "scarf", skin: SKINS[0], hair: "#5a3a2a", gender: "female" },
+  { id: "jun", name: "Jun", sweaterId: "moss", accessory: "beanie", skin: SKINS[3], hair: "#241d24", gender: "male" },
+  { id: "ada", name: "Ada", sweaterId: "gold", accessory: "none", skin: SKINS[1], hair: "#6e5a3a", gender: "female" },
+  { id: "theo", name: "Theo", sweaterId: "dusk", accessory: "none", skin: SKINS[4], hair: "#2e2e3a", gender: "male" },
 ];
 
 const rnd = Math.random;
@@ -112,7 +113,7 @@ export class Engine {
     const swatch = SWATCHES.find((s) => s.id === identity.sweater) ?? SWATCHES[0];
     const skin = SKINS[(identity.name.length + 2) % SKINS.length];
     const hair = ["#3a2a24", "#241d24", "#5a3a2a", "#7a4a3a"][(identity.name.length + 1) % 4];
-    this.sheets.set(PLAYER_ID, buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory));
+    this.sheets.set(PLAYER_ID, buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender));
     const p: PlayerState = {
       id: PLAYER_ID,
       name: identity.name || "Traveler",
@@ -181,7 +182,7 @@ export class Engine {
     const seatPool = [...this.world.seats].sort(() => rnd() - 0.5);
     BOT_SPECS.forEach((spec, i) => {
       const swatch = SWATCHES.find((s) => s.id === spec.sweaterId)!;
-      this.sheets.set(spec.id, buildSheet(swatch.c, swatch.hat, spec.skin, spec.hair, spec.accessory));
+      this.sheets.set(spec.id, buildSheet(swatch.c, swatch.hat, spec.skin, spec.hair, spec.accessory, spec.gender));
       const state: PlayerState = {
         id: spec.id,
         name: spec.name,

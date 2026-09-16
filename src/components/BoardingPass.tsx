@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildSheet, SKINS, SWATCHES } from "../game/sprites";
-import type { Accessory, Identity } from "../game/types";
+import type { Accessory, Gender, Identity } from "../game/types";
 
 /* ---------------- live sprite preview ---------------- */
 
@@ -10,8 +10,8 @@ function AvatarPreview({ identity }: { identity: Identity }) {
   const skin = SKINS[(identity.name.length + 2) % SKINS.length];
   const hair = ["#3a2a24", "#241d24", "#5a3a2a", "#7a4a3a"][(identity.name.length + 1) % 4];
   const sheet = useMemo(
-    () => buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory),
-    [swatch, skin, hair, identity.accessory]
+    () => buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender),
+    [swatch, skin, hair, identity.accessory, identity.gender]
   );
 
   useEffect(() => {
@@ -108,12 +108,18 @@ const ACCESSORIES: Array<{ id: Accessory; label: string }> = [
   { id: "scarf", label: "Scarf" },
 ];
 
+const GENDERS: Array<{ id: Gender; label: string; icon: string }> = [
+  { id: "female", label: "Female", icon: "♀" },
+  { id: "male", label: "Male", icon: "♂" },
+];
+
 export default function BoardingPass({ initial, onBoard }: { initial: Identity | null; onBoard: (id: Identity) => void }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [sweater, setSweater] = useState(initial?.sweater ?? "ember");
   const [accessory, setAccessory] = useState<Accessory>(initial?.accessory ?? "none");
+  const [gender, setGender] = useState<Gender>(initial?.gender ?? "female");
   const serial = useMemo(() => `NOX-${Math.floor(1000 + Math.random() * 9000)}`, []);
-  const identity: Identity = { name: name.trim(), sweater, accessory };
+  const identity: Identity = { name: name.trim(), sweater, accessory, gender };
   const canBoard = name.trim().length > 0;
 
   return (
@@ -225,23 +231,40 @@ export default function BoardingPass({ initial, onBoard }: { initial: Identity |
                     </div>
                   </div>
 
-                  <div className="mt-3.5">
-                    <p className="font-body text-[10px] font-bold uppercase tracking-[0.22em] text-muted">Accessory</p>
-                    <div className="mt-1.5 flex flex-wrap gap-2">
-                      {ACCESSORIES.map((a) => (
-                        <button
-                          key={a.id}
-                          onClick={() => setAccessory(a.id)}
-                          className={`nes-btn nes-btn-sm ${
-                            accessory === a.id ? "nes-btn-primary" : "nes-btn-secondary"
-                          }`}
-                        >
-                          {a.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              <div className="mt-3.5">
+                <p className="font-body text-[10px] font-bold uppercase tracking-[0.22em] text-muted">Accessory</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {ACCESSORIES.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => setAccessory(a.id)}
+                      className={`nes-btn nes-btn-sm ${
+                        accessory === a.id ? "nes-btn-primary" : "nes-btn-secondary"
+                      }`}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
+              <div className="mt-3.5">
+                <p className="font-body text-[10px] font-bold uppercase tracking-[0.22em] text-muted">Character</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {GENDERS.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => setGender(g.id)}
+                      className={`nes-btn nes-btn-sm ${
+                        gender === g.id ? "nes-btn-accent" : "nes-btn-secondary"
+                      }`}
+                    >
+                      <span className="mr-1">{g.icon}</span>
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
                   <div className="mt-5 flex items-center gap-3">
                     <button
                       disabled={!canBoard}
