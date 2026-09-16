@@ -3,9 +3,14 @@ import BoardingPass from "./components/BoardingPass";
 import PomodoroCard from "./components/PomodoroCard";
 import TodoPanel from "./components/TodoPanel";
 import { EmoteBar, KeysLegend, PresenceList, SoundDock, TouchPad } from "./components/Dock";
+import LobbyBrowser from "./components/LobbyBrowser";
+import CreateLobbyModal from "./components/CreateLobbyModal";
+import WaitingRoom from "./components/WaitingRoom";
 import { SoundKit } from "./game/audio";
 import { Engine } from "./game/engine";
+import { lobbyManager } from "./game/lobbyManager";
 import type { EmoteKind, HudSnapshot, Identity } from "./game/types";
+import type { LobbyView } from "./game/lobby";
 
 const IDENTITY_KEY = "nightowl.identity.v1";
 
@@ -92,6 +97,11 @@ export default function App() {
   const [boarded, setBoarded] = useState(false);
   const [todoOpen, setTodoOpen] = useState(false);
   const [clock, setClock] = useState("--:--");
+  
+  // Lobby state
+  const [lobbyView, setLobbyView] = useState<LobbyView>('browser');
+  const [currentLobbyId, setCurrentLobbyId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   if (!soundRef.current) soundRef.current = new SoundKit();
   const sound = soundRef.current;
@@ -134,6 +144,43 @@ export default function App() {
   const handleEmote = (k: EmoteKind) => {
     sound.blip(700);
     engineRef.current?.emote(k);
+  };
+
+  // Lobby handlers
+  const handleCreateLobby = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleLobbyCreated = (lobbyId: string) => {
+    setCurrentLobbyId(lobbyId);
+    setLobbyView('waiting');
+    setShowCreateModal(false);
+  };
+
+  const handleJoinLobby = (lobbyId: string) => {
+    const lobby = lobbyManager.getLobby(lobbyId);
+    if (!lobby) return;
+
+    const playerName = identity?.name || 'Player';
+    const avatar = identity?.sweater || 'default';
+    
+    try {
+      lobbyManager.joinLobby(lobbyId, playerName, avatar);
+      setCurrentLobbyId(lobbyId);
+      setLobbyView('waiting');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to join lobby');
+    }
+  };
+
+  const handleLeaveLobby = () => {
+    setCurrentLobbyId(null);
+    setLobbyView('browser');
+  };
+
+  const handleStartGame = () => {
+    setLobbyView('in-lobby');
+    // Game will start, user will board the train
   };
 
   return (
@@ -183,8 +230,38 @@ export default function App() {
         </div>
       </header>
 
-      {/* ---------- the car ---------- */}
-      <main className="relative min-h-0 flex-1 p-2.5 md:p-3.5">
+      {/* ---------- main content ---------- */}
+      <main className="relative min-h-0 flex-1">
+        {/* Show lobby UI if not boarded */}
+        {!boarded && lobbyView === 'browser' && (
+          <div className="h-full">
+            <LobbyBrowser
+              onCreateLobby={handleCreateLobby}
+              onJoinLobby={handleJoinLobby}
+            />
+          </div>
+        )}
+
+        {showCreateModal && (
+          <CreateLobbyModal
+            onClose={() => setShowCreateModal(false)}
+            onCreated={handleLobbyCreated}
+          />
+        )}
+
+        {!boarded && lobbyView === 'waiting' && currentLobbyId && (
+          <div className="h-full">
+            <WaitingRoom
+              lobbyId={currentLobbyId}
+              onStart={handleStartGame}
+              onLeave={handleLeaveLobby}
+            />
+          </div>
+        )}
+
+        {/* Show game UI when boarded or in-lobby */}
+        {(boarded || lobbyView === 'in-lobby') && (
+        <div className="p-2.5 md:p-3.5 h-full">
         <div className={`room-frame scanlines relative h-full w-full overflow-hidden bg-navy ${hud.seated ? "focused" : ""}`}>
           <canvas ref={canvasRef} className="absolute inset-0" />
 
@@ -213,6 +290,8 @@ export default function App() {
           {/* boarding ticket */}
           {!boarded && <BoardingPass initial={identity} onBoard={handleBoard} />}
         </div>
+        </div>
+        )}
       </main>
 
       {/* ---------- footer ---------- */}
