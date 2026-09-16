@@ -13,6 +13,7 @@ export interface Identity {
   sweater: string; // hex color key
   accessory: Accessory;
   gender: Gender;
+  skinImage?: string; // base64 data URL of uploaded skin image
 }
 
 export interface Vec {

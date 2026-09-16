@@ -611,10 +611,65 @@ function drawSide(g: G, p: AvatarPalette, acc: string, frame: number) {
 
 const sheetCache = new Map<string, HTMLCanvasElement>();
 
-export function buildSheet(sweater: string, hat: string, skin: string, hair: string, acc: string, gender: string = "female"): HTMLCanvasElement {
-  const key = `${sweater}|${hat}|${skin}|${hair}|${acc}|${gender}`;
+/**
+ * Converts any uploaded image into a proper 96x48 sprite sheet.
+ * If the image is a single 16x16 sprite, it duplicates it across all frames.
+ * If it's already 96x48, it uses it directly.
+ */
+export function convertToSpriteSheet(imageDataUrl: string): Promise<HTMLCanvasElement> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const sheet = makeCanvas(96, 48);
+      const g = sheet.getContext("2d")!;
+      
+      // If image is 16x16 or similar small size, tile it across all frames
+      if (img.width <= 32 && img.height <= 32) {
+        // Single sprite - duplicate across all 18 frames
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 6; col++) {
+            g.drawImage(img, col * 16, row * 16, 16, 16);
+          }
+        }
+      } else if (img.width === 96 && img.height === 48) {
+        // Already the right size
+        g.drawImage(img, 0, 0);
+      } else {
+        // Scale to fit 96x48
+        g.drawImage(img, 0, 0, 96, 48);
+      }
+      
+      resolve(sheet);
+    };
+    img.src = imageDataUrl;
+  });
+}
+
+/**
+ * Synchronous version for when sprite sheet is already prepared.
+ */
+export function buildSheetFromImage(sheetCanvas: HTMLCanvasElement): HTMLCanvasElement {
+  const sheet = makeCanvas(96, 48);
+  const g = sheet.getContext("2d")!;
+  g.drawImage(sheetCanvas, 0, 0);
+  return sheet;
+}
+
+export function buildSheet(sweater: string, hat: string, skin: string, hair: string, acc: string, gender: string = "female", customSheet?: HTMLCanvasElement): HTMLCanvasElement {
+  const key = `${sweater}|${hat}|${skin}|${hair}|${acc}|${gender}|${customSheet ? 'custom' : 'default'}`;
   const hit = sheetCache.get(key);
   if (hit) return hit;
+  
+  // If custom sprite sheet is provided, use it
+  if (customSheet) {
+    const sheet = makeCanvas(96, 48);
+    const g = sheet.getContext("2d")!;
+    g.drawImage(customSheet, 0, 0);
+    sheetCache.set(key, sheet);
+    return sheet;
+  }
+  
+  // Otherwise, use procedural generation
   const pal = makePalette(sweater, hat, skin, hair);
   const sheet = makeCanvas(16 * SHEET_COLS, 16 * 3);
   const g = sheet.getContext("2d")!;

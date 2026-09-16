@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildSheet, SKINS, SWATCHES } from "../game/sprites";
+import { buildSheet, convertToSpriteSheet, SKINS, SWATCHES } from "../game/sprites";
 import type { Accessory, Gender, Identity } from "../game/types";
 
 /* ---------------- live sprite preview ---------------- */
@@ -9,9 +9,21 @@ function AvatarPreview({ identity }: { identity: Identity }) {
   const swatch = SWATCHES.find((s) => s.id === identity.sweater) ?? SWATCHES[0];
   const skin = SKINS[(identity.name.length + 2) % SKINS.length];
   const hair = ["#3a2a24", "#241d24", "#5a3a2a", "#7a4a3a"][(identity.name.length + 1) % 4];
+  
+  // For custom skin, we need to handle it asynchronously
+  const [customSheet, setCustomSheet] = useState<HTMLCanvasElement | undefined>();
+  
+  useEffect(() => {
+    if (identity.skinImage) {
+      convertToSpriteSheet(identity.skinImage).then(setCustomSheet);
+    } else {
+      setCustomSheet(undefined);
+    }
+  }, [identity.skinImage]);
+  
   const sheet = useMemo(
-    () => buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender),
-    [swatch, skin, hair, identity.accessory, identity.gender]
+    () => buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender, customSheet),
+    [swatch, skin, hair, identity.accessory, identity.gender, customSheet]
   );
 
   useEffect(() => {
@@ -118,9 +130,53 @@ export default function BoardingPass({ initial, onBoard }: { initial: Identity |
   const [sweater, setSweater] = useState(initial?.sweater ?? "ember");
   const [accessory, setAccessory] = useState<Accessory>(initial?.accessory ?? "none");
   const [gender, setGender] = useState<Gender>(initial?.gender ?? "female");
+  const [skinImage, setSkinImage] = useState<string | undefined>(initial?.skinImage);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const serial = useMemo(() => `NOX-${Math.floor(1000 + Math.random() * 9000)}`, []);
-  const identity: Identity = { name: name.trim(), sweater, accessory, gender };
+  const identity: Identity = { name: name.trim(), sweater, accessory, gender, skinImage };
   const canBoard = name.trim().length > 0;
+
+  const handleFileUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setSkinImage(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const removeCustomSkin = () => {
+    setSkinImage(undefined);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className="board-sky absolute inset-0 z-40 overflow-hidden">
@@ -263,6 +319,65 @@ export default function BoardingPass({ initial, onBoard }: { initial: Identity |
                       {g.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Custom Skin Upload */}
+              <div className="mt-3.5">
+                <p className="font-body text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
+                  Custom Skin (Optional)
+                </p>
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`mt-1.5 flex cursor-pointer flex-col items-center justify-center rounded-lg border-4 border-dashed p-4 transition-all ${
+                    isDragging
+                      ? "border-cyan bg-cyan/10"
+                      : skinImage
+                      ? "border-lime bg-lime/5"
+                      : "border-muted/40 bg-navydeep/30 hover:border-cyan/60 hover:bg-cyan/5"
+                  }`}
+                >
+                  {skinImage ? (
+                    <>
+                      <img
+                        src={skinImage}
+                        alt="Custom skin preview"
+                        className="mb-2 h-16 w-16 [image-rendering:pixelated]"
+                      />
+                      <p className="text-center font-term text-sm text-lime">
+                        ✓ Custom skin loaded!
+                      </p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeCustomSkin();
+                        }}
+                        className="nes-btn nes-btn-sm nes-btn-secondary mt-2"
+                      >
+                        Remove
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2 text-4xl">📤</div>
+                      <p className="text-center font-term text-sm text-cream">
+                        Drop pixel art here or click to upload
+                      </p>
+                      <p className="mt-1 text-center font-term text-xs text-muted">
+                        16×16 or 96×48 PNG recommended
+                      </p>
+                    </>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    className="hidden"
+                  />
                 </div>
               </div>
                   <div className="mt-5 flex items-center gap-3">

@@ -7,7 +7,7 @@
    a realtime transport could replace the bot brain by writing remote
    states into the same map. */
 
-import { buildSheet, EYE_SPOTS, getIcon, SKINS, SWATCHES } from "./sprites";
+import { buildSheet, convertToSpriteSheet, EYE_SPOTS, getIcon, SKINS, SWATCHES } from "./sprites";
 import { buildWorld, CLOCK, COLS, HANG_SIGN_X, isSolid, ROWS, TILE, WINDOW_BAND_H, WINDOW_BAND_Y, type World } from "./world";
 import type { BoothCycle, Dir, EmoteKind, HudSnapshot, Identity, PassengerHud, PlayerState, SeatDef } from "./types";
 
@@ -108,12 +108,19 @@ export class Engine {
 
   /* ---------------- public API ---------------- */
 
-  board(identity: Identity) {
+  async board(identity: Identity) {
     this.identity = identity;
     const swatch = SWATCHES.find((s) => s.id === identity.sweater) ?? SWATCHES[0];
     const skin = SKINS[(identity.name.length + 2) % SKINS.length];
     const hair = ["#3a2a24", "#241d24", "#5a3a2a", "#7a4a3a"][(identity.name.length + 1) % 4];
-    this.sheets.set(PLAYER_ID, buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender));
+    
+    // If custom skin image is provided, convert it to sprite sheet
+    let customSheet: HTMLCanvasElement | undefined;
+    if (identity.skinImage) {
+      customSheet = await convertToSpriteSheet(identity.skinImage);
+    }
+    
+    this.sheets.set(PLAYER_ID, buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender, customSheet));
     const p: PlayerState = {
       id: PLAYER_ID,
       name: identity.name || "Traveler",

@@ -118,7 +118,7 @@ export default function App() {
     return () => window.clearInterval(iv);
   }, []);
 
-  const handleBoard = (id: Identity) => {
+  const handleBoard = async (id: Identity) => {
     setIdentity(id);
     try {
       localStorage.setItem(IDENTITY_KEY, JSON.stringify(id));
@@ -127,7 +127,7 @@ export default function App() {
     }
     sound.init();
     sound.chime("focus");
-    engineRef.current?.board(id);
+    await engineRef.current?.board(id);
     setBoarded(true);
   };
 
