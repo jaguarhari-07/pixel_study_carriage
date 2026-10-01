@@ -109,6 +109,12 @@ export class Engine {
   /* ---------------- public API ---------------- */
 
   async board(identity: Identity) {
+    // Prevent double-boarding
+    if (this.identity && this.players.has(PLAYER_ID)) {
+      console.warn("Player already boarded");
+      return;
+    }
+
     this.identity = identity;
     const swatch = SWATCHES.find((s) => s.id === identity.sweater) ?? SWATCHES[0];
     const skin = SKINS[(identity.name.length + 2) % SKINS.length];
@@ -117,7 +123,11 @@ export class Engine {
     // If custom skin image is provided, convert it to sprite sheet
     let customSheet: HTMLCanvasElement | undefined;
     if (identity.skinImage) {
-      customSheet = await convertToSpriteSheet(identity.skinImage);
+      try {
+        customSheet = await convertToSpriteSheet(identity.skinImage);
+      } catch (err) {
+        console.error("Failed to convert custom skin:", err);
+      }
     }
     
     this.sheets.set(PLAYER_ID, buildSheet(swatch.c, swatch.hat, skin, hair, identity.accessory, identity.gender, customSheet));
@@ -136,6 +146,10 @@ export class Engine {
     };
     this.players.set(PLAYER_ID, p);
     this.camX = Math.max(0, p.pos.x - this.viewWorldW() / 2);
+    
+    // Emit HUD update immediately
+    this.emitHud();
+    
     // a neighbor notices you boarding
     const greeter = [...this.players.values()].find((b) => b.isBot && b.seatId);
     if (greeter) {
