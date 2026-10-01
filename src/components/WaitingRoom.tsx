@@ -14,7 +14,7 @@ export default function WaitingRoom({ lobbyId, onStart, onLeave }: WaitingRoomPr
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = lobbyManager.subscribe(() => {
+    const update = () => {
       const currentLobby = lobbyManager.getLobby(lobbyId);
       setLobby(currentLobby);
       setIsHost(lobbyManager.isHost());
@@ -22,18 +22,18 @@ export default function WaitingRoom({ lobbyId, onStart, onLeave }: WaitingRoomPr
       const currentPlayerId = lobbyManager.getCurrentPlayerId();
       const player = currentLobby?.currentPlayers.find(p => p.id === currentPlayerId);
       setIsReady(player?.isReady || false);
-    });
 
-    const currentLobby = lobbyManager.getLobby(lobbyId);
-    setLobby(currentLobby);
-    setIsHost(lobbyManager.isHost());
-    
-    const currentPlayerId = lobbyManager.getCurrentPlayerId();
-    const player = currentLobby?.currentPlayers.find(p => p.id === currentPlayerId);
-    setIsReady(player?.isReady || false);
+      // If lobby no longer exists, leave
+      if (!currentLobby) {
+        onLeave();
+      }
+    };
+
+    const unsubscribe = lobbyManager.subscribe(update);
+    update();
 
     return unsubscribe;
-  }, [lobbyId]);
+  }, [lobbyId, onLeave]);
 
   const handleToggleReady = () => {
     lobbyManager.toggleReady();

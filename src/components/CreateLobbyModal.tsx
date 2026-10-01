@@ -44,9 +44,19 @@ export default function CreateLobbyModal({ onClose, onCreated }: CreateLobbyModa
         allowChat
       };
 
+      // Try to get player name from localStorage
+      let playerName = 'Host';
+      try {
+        const identityRaw = localStorage.getItem('nightowl.identity.v1');
+        if (identityRaw) {
+          const identity = JSON.parse(identityRaw);
+          playerName = identity.name || 'Host';
+        }
+      } catch { /* ignore */ }
+
       const lobby = lobbyManager.createLobby(
         name.trim(),
-        'You', // TODO: Get actual player name
+        playerName,
         maxPlayers,
         settings,
         description.trim() || undefined,

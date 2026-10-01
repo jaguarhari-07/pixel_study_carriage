@@ -31,6 +31,21 @@ class LobbyManager {
       const currentLobby = localStorage.getItem(CURRENT_LOBBY_KEY);
       if (currentLobby) {
         this.currentLobbyId = currentLobby;
+        
+        // Check if current player is still in the lobby
+        const lobby = this.lobbies.get(currentLobby);
+        if (lobby) {
+          const playerInLobby = lobby.currentPlayers.some(p => p.id === this.currentPlayerId);
+          if (!playerInLobby) {
+            // Player ID changed (page refresh), clear current lobby
+            this.currentLobbyId = null;
+            localStorage.removeItem(CURRENT_LOBBY_KEY);
+          }
+        } else {
+          // Lobby no longer exists
+          this.currentLobbyId = null;
+          localStorage.removeItem(CURRENT_LOBBY_KEY);
+        }
       }
     } catch (e) {
       console.error('Failed to load lobbies from storage:', e);
